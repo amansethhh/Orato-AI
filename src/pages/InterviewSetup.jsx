@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Sparkles, Edit3 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,7 +19,7 @@ export default function InterviewSetup() {
   useEffect(() => {
     // Check authentication
     const checkAuth = async () => {
-      const isAuthenticated = await base44.auth.isAuthenticated();
+      const isAuthenticated = await api.auth.isAuthenticated();
       if (!isAuthenticated) {
         navigate(createPageUrl('Intro'), { replace: true });
       }

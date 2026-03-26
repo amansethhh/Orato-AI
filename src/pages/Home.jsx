@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { Briefcase, Presentation, MessageCircle, Settings } from 'lucide-react';
 import { createPageUrl } from '@/utils';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import ModeCard from '@/components/ModeCard';
 import ProgressSnapshot from '@/components/ProgressSnapshot';
 import SettingsModal from '@/components/SettingsModal';
@@ -110,7 +110,7 @@ export default function Home() {
 
   const handleModeClick = async (mode) => {
     // Check if user is authenticated first
-    const isAuthenticated = await base44.auth.isAuthenticated();
+    const isAuthenticated = await api.auth.isAuthenticated();
     
     if (!isAuthenticated) {
       setSelectedMode(mode);

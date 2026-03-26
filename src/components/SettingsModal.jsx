@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Moon, Sun, Globe, User, Target, MessageSquare, Lock, ExternalLink, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { useSettings } from '@/components/SettingsProvider';
 import { getTranslation } from '@/components/translations';
 
@@ -26,9 +26,11 @@ export default function SettingsModal({ isOpen, onClose }) {
   const handleLogin = async () => {
     try {
       setIsLoading(true);
-      await base44.auth.redirectToLogin(window.location.href);
+      // In local mode, user is always authenticated — just close the modal
+      onClose();
     } catch (error) {
       console.error('Login error:', error);
+    } finally {
       setIsLoading(false);
     }
   };

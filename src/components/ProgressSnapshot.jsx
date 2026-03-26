@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Minus, Target } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { useSettings } from '@/components/SettingsProvider';
 import { getTranslation } from '@/components/translations';
 
@@ -12,7 +12,7 @@ export default function ProgressSnapshot() {
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['progress-snapshot'],
     queryFn: async () => {
-      const allSessions = await base44.entities.PracticeSession.list('-created_date', 10);
+      const allSessions = await api.entities.PracticeSession.list('-created_date', 10);
       return allSessions;
     },
     initialData: []

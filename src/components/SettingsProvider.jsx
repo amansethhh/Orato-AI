@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 
 const SettingsContext = createContext();
 
@@ -56,7 +56,7 @@ export const SettingsProvider = ({ children }) => {
 
   const loadUserAndPreferences = async () => {
     try {
-      const currentUser = await base44.auth.me();
+      const currentUser = await api.auth.me();
       setUser(currentUser);
 
       // Load preferences from user data or localStorage
@@ -85,7 +85,7 @@ export const SettingsProvider = ({ children }) => {
     setAppearance(value);
     localStorage.setItem('orato_appearance', value);
     try {
-      if (user) await base44.auth.updateMe({ appearance: value });
+      if (user) await api.auth.updateMe({ appearance: value });
     } catch (e) {
       console.error('Failed to save appearance:', e);
     }
@@ -95,7 +95,7 @@ export const SettingsProvider = ({ children }) => {
     setLanguage(value);
     localStorage.setItem('orato_language', value);
     try {
-      if (user) await base44.auth.updateMe({ language: value });
+      if (user) await api.auth.updateMe({ language: value });
     } catch (e) {
       console.error('Failed to save language:', e);
     }
@@ -105,7 +105,7 @@ export const SettingsProvider = ({ children }) => {
     setCoachingFocus(value);
     localStorage.setItem('orato_coaching_focus', value);
     try {
-      if (user) await base44.auth.updateMe({ coaching_focus: value });
+      if (user) await api.auth.updateMe({ coaching_focus: value });
     } catch (e) {
       console.error('Failed to save coaching focus:', e);
     }
@@ -115,7 +115,7 @@ export const SettingsProvider = ({ children }) => {
     setFeedbackStyle(value);
     localStorage.setItem('orato_feedback_style', value);
     try {
-      if (user) await base44.auth.updateMe({ feedback_style: value });
+      if (user) await api.auth.updateMe({ feedback_style: value });
     } catch (e) {
       console.error('Failed to save feedback style:', e);
     }
@@ -130,7 +130,7 @@ export const SettingsProvider = ({ children }) => {
     
     // Perform logout and redirect to Intro page
     try {
-      await base44.auth.logout(window.location.origin + '/#/Intro');
+      await api.auth.logout(window.location.origin + '/#/Intro');
     } catch {
       // If logout fails, still redirect to intro
       window.location.href = '/#/Intro';

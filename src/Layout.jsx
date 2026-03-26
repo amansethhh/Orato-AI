@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SettingsProvider } from '@/components/SettingsProvider';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { createPageUrl } from '@/utils';
 
 // Apply theme synchronously before React renders ANYTHING
@@ -26,7 +26,7 @@ export default function Layout({ children, currentPageName }) {
 
         let isAuthenticated = false;
         try {
-          isAuthenticated = await base44.auth.isAuthenticated();
+          isAuthenticated = await api.auth.isAuthenticated();
         } catch {
           isAuthenticated = true; // fallback: assume authenticated locally
         }

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Mic, Brain, RotateCcw } from 'lucide-react';
 import { createPageUrl } from '@/utils';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { Button } from '@/components/ui/button';
 import { useSettings } from '@/components/SettingsProvider';
 
@@ -89,7 +89,7 @@ export default function Intro() {
     
     // In local/mock mode, user is always authenticated — go to Home
     try {
-      const isAuthenticated = await base44.auth.isAuthenticated();
+      const isAuthenticated = await api.auth.isAuthenticated();
       if (isAuthenticated) {
         navigate(createPageUrl('Home'));
       } else {

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { useSettings } from '@/components/SettingsProvider';
 import { getTranslation } from '@/components/translations';
 
@@ -12,7 +12,8 @@ export default function LoginPrompt({ isOpen, onClose }) {
 
   const handleLogin = async () => {
     try {
-      await base44.auth.redirectToLogin(window.location.href);
+      // In local mode, user is always authenticated — just close the prompt
+      onClose();
     } catch (error) {
       console.error('Login error:', error);
     }

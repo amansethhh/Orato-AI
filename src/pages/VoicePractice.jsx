@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Mic, Square, Loader2, Target } from 'lucide-react';
 import { createPageUrl } from '@/utils';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { Button } from '@/components/ui/button';
 import VoiceWaveform from '@/components/VoiceWaveform';
 import ExpandableQuestion from '@/components/ExpandableQuestion';
@@ -80,6 +80,8 @@ export default function VoicePractice() {
   const [coachingHint, setCoachingHint] = useState('');
   const [showCoachingHint, setShowCoachingHint] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(1);
+  const [audioStream, setAudioStream] = useState(null);
+  const [processingError, setProcessingError] = useState(null);
   const totalQuestions = 5;
   
   // Presentation context parameters
@@ -90,11 +92,14 @@ export default function VoicePractice() {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
+  const transcriptRef = useRef('');
+  const recognitionRef = useRef(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     // Check authentication
     const checkAuth = async () => {
-      const isAuthenticated = await base44.auth.isAuthenticated();
+      const isAuthenticated = await api.auth.isAuthenticated();
       if (!isAuthenticated) {
         navigate(createPageUrl('Intro'), { replace: true });
       }
@@ -159,10 +164,10 @@ export default function VoicePractice() {
   Output ONLY the question, nothing else.`;
 
       const languageEnforcement = language === 'hindi'
-        ? `\n\n🔒 CRITICAL: Your question MUST be in pure Hindi. Even if the job role is in English, generate the question natively in Hindi. Do not translate - think in Hindi.`
-        : `\n\n🔒 CRITICAL: Your question MUST be in English only.`;
+        ? `\n\nðŸ”’ CRITICAL: Your question MUST be in pure Hindi. Even if the job role is in English, generate the question natively in Hindi. Do not translate - think in Hindi.`
+        : `\n\nðŸ”’ CRITICAL: Your question MUST be in English only.`;
 
-      const result = await base44.integrations.Core.InvokeLLM({
+      const result = await api.integrations.Core.InvokeLLM({
         prompt: contextPrompt + languageEnforcement,
         response_json_schema: {
           type: "object",
@@ -189,10 +194,10 @@ export default function VoicePractice() {
       };
 
       const languagePrefixPrompt = language === 'hindi'
-        ? `🔒 LANGUAGE: Generate the prompt in pure, native Hindi only.\n\n`
-        : `🔒 LANGUAGE: Generate the prompt in English only.\n\n`;
+        ? `ðŸ”’ LANGUAGE: Generate the prompt in pure, native Hindi only.\n\n`
+        : `ðŸ”’ LANGUAGE: Generate the prompt in English only.\n\n`;
 
-      const result = await base44.integrations.Core.InvokeLLM({
+      const result = await api.integrations.Core.InvokeLLM({
         prompt: `${languagePrefixPrompt}${promptTypes[mode]}\n\nOutput ONLY the prompt, nothing else.`,
         response_json_schema: {
           type: "object",
@@ -262,9 +267,66 @@ export default function VoicePractice() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // â”€â”€ Speech Recognition setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('[VoicePractice] SpeechRecognition not available in this browser.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = language === 'hindi' ? 'hi-IN' : 'en-US';
+    recognition.maxAlternatives = 1;
+
+    let finalTranscript = '';
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript + ' ';
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      transcriptRef.current = (finalTranscript + interim).trim();
+    };
+
+    recognition.onerror = (event) => {
+      console.warn('[SpeechRecognition] error:', event.error);
+      // Don't crash â€” transcript will just be empty
+    };
+
+    recognition.onend = () => {
+      // Finalize whatever we have
+      if (finalTranscript) {
+        transcriptRef.current = finalTranscript.trim();
+      }
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  };
+
+  const stopSpeechRecognition = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch { /* already stopped */ }
+      recognitionRef.current = null;
+    }
+  };
+
   const startRecording = async () => {
+    if (isSubmittingRef.current) return; // prevent double-tap
+    transcriptRef.current = ''; // reset transcript
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setAudioStream(stream); // for real waveform
+
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
@@ -277,14 +339,20 @@ export default function VoicePractice() {
 
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach(track => track.stop());
+        setAudioStream(null);
+        stopSpeechRecognition();
         await processRecording();
       };
 
       mediaRecorder.start();
       setIsRecording(true);
       setSessionState('listening');
+
+      // Start Speech Recognition concurrently
+      startSpeechRecognition();
     } catch (err) {
       console.error('Error accessing microphone:', err);
+      setAudioStream(null);
       // Switch to demo mode on microphone error
       setIsProcessing(true);
       setSessionState('analyzing');
@@ -305,6 +373,10 @@ export default function VoicePractice() {
   };
 
   const processRecording = async () => {
+    // Prevent duplicate submissions
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     setIsProcessing(true);
     setSessionState('analyzing');
     
@@ -312,492 +384,127 @@ export default function VoicePractice() {
       const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
       const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
       
-      // Upload the audio file
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: audioFile });
+      // Upload the audio file (local blob URL)
+      const { file_url } = await api.integrations.Core.UploadFile({ file: audioFile });
+
+      // Use real transcript from Speech Recognition, or fall back to demo
+      const realTranscript = (transcriptRef.current || '').trim();
+      const isShortTranscript = realTranscript.split(/\s+/).length < 3;
+      const useDemoTranscript = !realTranscript || isShortTranscript;
+
+      const capturedTranscript = useDemoTranscript
+        ? (mode === 'interview'
+            ? "I'm a software engineer with five years of experience. I've worked on various projects and I really enjoy problem solving. Um, I think my biggest strength is being able to work well with teams."
+            : mode === 'presentation'
+            ? "So today I want to talk about our new project. It's really exciting and, um, we think it will be great for our users. The main benefits are efficiency and ease of use."
+            : "I really love hiking. It's something I do every weekend. Um, you know, being in nature is really relaxing and it helps me clear my mind.")
+        : realTranscript;
+
+      console.log('[VoicePractice] Transcript:', useDemoTranscript ? '(demo fallback)' : `(${capturedTranscript.split(/\\s+/).length} words)`, capturedTranscript.slice(0, 120));
       
       // Create practice session
-      const session = await base44.entities.PracticeSession.create({
+      const session = await api.entities.PracticeSession.create({
         mode,
         prompt: currentPrompt,
+        transcript: capturedTranscript,
         audio_url: file_url
       });
 
-      const coachingContext = modeCoachingFocus[mode];
-      
+
+
       // Get parent session data for improvement comparison if this is a retry
       let parentSession = null;
       if (parentSessionId) {
-        const sessions = await base44.entities.PracticeSession.filter({ id: parentSessionId });
+        const sessions = await api.entities.PracticeSession.filter({ id: parentSessionId });
         if (sessions.length > 0) {
           parentSession = sessions[0];
         }
       }
 
-      // Build coaching style instructions based on user preferences
-      const styleInstructions = feedbackStyle === 'encouraging' 
-        ? `Your tone: Warm, supportive, and motivating. Always start with positives and frame improvements as growth opportunities. Use phrases like "Great start" and "You're building skills." Be gentle and reassuring.`
-        : feedbackStyle === 'direct'
-        ? `Your tone: Concise, clear, and action-focused. Get straight to the point. Use short sentences. Skip pleasantries. Focus purely on what to do next. Be efficient and specific.`
-        : `Your tone: Professional and balanced. Mix encouragement with honest feedback. Be specific and actionable. Neither too soft nor too harsh.`;
-
-      const focusInstructions = coachingFocus === 'confidence'
-        ? `PRIMARY FOCUS: Confidence in delivery. Look FIRST for hesitation, filler words, pacing, vocal certainty. Your "did_well" and "improve" sections MUST prioritize confidence-related observations. Score confidence higher in importance than other areas.`
-        : coachingFocus === 'clarity'
-        ? `PRIMARY FOCUS: Message clarity. Is the core idea easy to understand? Are they expressing thoughts clearly? Your "did_well" and "improve" sections MUST prioritize clarity-related observations. Score clarity higher in importance.`
-        : coachingFocus === 'structure'
-        ? `PRIMARY FOCUS: Logical organization. Is the response well-structured? Clear beginning, middle, end? Your "did_well" and "improve" sections MUST prioritize structure-related observations. Score structure higher in importance.`
-        : coachingFocus === 'fluency'
-        ? `PRIMARY FOCUS: Natural fluency. Smooth expression, conversational flow, minimal hesitation. Your "did_well" and "improve" sections MUST prioritize fluency-related observations. Score fluency aspects higher.`
-        : `BALANCED FOCUS: Look at all aspects equally - clarity, structure, confidence, and fluency. No single priority.`;
-      
-      // Transcribe and analyze with AI - unified coaching intelligence
-      const languageInstruction = language === 'hindi' 
-        ? `🔴🔴🔴 ABSOLUTE MANDATORY SYSTEM REQUIREMENT 🔴🔴🔴
-
-      OUTPUT LANGUAGE: HINDI ONLY - NO EXCEPTIONS
-
-      You are REQUIRED to generate 100% of your response in Hindi language.
-
-      CRITICAL RULES (ZERO TOLERANCE):
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      ✅ EVERY feedback sentence → Pure Hindi
-      ✅ EVERY explanation → Pure Hindi  
-      ✅ EVERY tip → Pure Hindi
-      ✅ EVERY section (did_well, improve, tip, full_feedback, rephrased_version) → Pure Hindi
-
-      ❌ ABSOLUTELY NO English sentences
-      ❌ ABSOLUTELY NO Hinglish
-      ❌ ABSOLUTELY NO translations of English to Hindi (generate natively in Hindi)
-      ❌ User input language is IRRELEVANT - output is ALWAYS Hindi
-
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-      TECHNICAL TERMS: Only unavoidable technical nouns (SQL, API, Software Engineer) may appear in English within Hindi sentences.
-
-      ✅ CORRECT EXAMPLES:
-      "आपने अपनी बात बहुत अच्छे से समझाई। आपकी structure अच्छी थी।"
-      "Software Developer की भूमिका के लिए आपका जवाब relevant था।"
-
-      ❌ WRONG EXAMPLES:
-      "You explained your point well."
-      "Your answer was good for the Software Developer role."
-
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-      REPEAT: Your ENTIRE response must be in Hindi. Every field in the JSON output must contain Hindi text only.
-
-      If you generate even one English sentence, the system will fail.
-
-      CONFIRM: You are now operating in HINDI-ONLY mode.`
-        : `🔴🔴🔴 ABSOLUTE MANDATORY SYSTEM REQUIREMENT 🔴🔴🔴
-
-      OUTPUT LANGUAGE: ENGLISH ONLY - NO EXCEPTIONS
-
-      You are REQUIRED to generate 100% of your response in English language.
-
-      CRITICAL RULES (ZERO TOLERANCE):
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      ✅ EVERY feedback sentence → English
-      ✅ EVERY explanation → English
-      ✅ EVERY tip → English
-      ✅ User input language is IRRELEVANT - output is ALWAYS English
-
-      ❌ ABSOLUTELY NO Hindi
-      ❌ ABSOLUTELY NO mixed language
-
-      CONFIRM: You are now operating in ENGLISH-ONLY mode.`;
-
-      const analysis = await base44.integrations.Core.InvokeLLM({
-        prompt: `${languageInstruction}
-
-      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-      You are a professional communication coach. You are the same coach across all sessions - your personality, philosophy, and approach remain consistent. Only the context changes.
-
-      The user is practicing ${mode} speaking and responded to: "${currentPrompt}"
-
-      ===================================
-      USER'S COACHING PREFERENCES
-      ===================================
-
-      ${styleInstructions}
-
-      ${focusInstructions}
-
-      ===================================
-      YOUR COACHING PHILOSOPHY
-      ===================================
-
-      You believe:
-      - Communication is a skill, not a talent
-      - Progress happens through specific, actionable feedback
-      - Every speaker has unique strengths to build on
-      - Improvement comes from focus, not perfection
-
-      You sound:
-      - Encouraging but honest
-      - Specific, never vague
-      - Professional, never robotic
-      - Human, never generic
-
-      ===================================
-      ANALYSIS FRAMEWORK (VOICE-CENTRIC)
-      ===================================
-
-      Focus ONLY on:
-      ✓ Clarity of thought and message
-      ✓ Logical structure and flow
-      ✓ Confidence in delivery (tone, pacing, hesitation)
-      ✓ Filler word frequency ("um", "uh", "like", "you know")
-      ✓ Answer relevance to the prompt
-
-      Do NOT judge:
-      ✗ Accent or pronunciation
-      ✗ Native fluency
-      ✗ Cultural expression style
-      ✗ Personal background
-
-      ===================================
-      MODE-SPECIFIC CONTEXT
-      ===================================
-
-      ${mode === 'interview' ? `
-      INTERVIEW PRACTICE:
-      Prioritize: Structure > Relevance > Confidence
-      Look for: Specific examples, clear narrative, direct answer to question
-      Avoid: Vague statements, rambling, not addressing the question
-      ` : mode === 'presentation' ? `
-      PRESENTATION PRACTICE:
-      Prioritize: Confidence > Clarity > Pacing
-      Look for: Strong opening, clear transitions, deliberate delivery
-      Avoid: Rushed delivery, weak conclusions, excessive qualifiers
-      ` : `
-      CASUAL SPEAKING:
-      Prioritize: Fluency > Natural Flow > Ease
-      Look for: Smooth expression, conversational tone, minimal hesitation
-      Avoid: Over-formality, excessive fillers, unnatural pauses
-      `}
-
-===================================
-INTELLIGENT ANALYSIS PROCESS
-===================================
-
-STEP 1: Transcribe accurately.
-
-STEP 2: Understand their core message.
-- What are they trying to communicate?
-- Did they address the prompt?
-
-STEP 3: Identify the ONE most impactful improvement area.
-Not everything - just what matters most right now.
-
-STEP 4: Count filler words precisely.
-Count only: "um", "uh", "like", "you know", "so", "basically"
-
-STEP 5: Detect strengths to reinforce.
-Every speaker has something they did well - find it.
-
-${parentSession ? `
-STEP 6: COMPARE TO PREVIOUS ATTEMPT (RETRY MODE)
-User is focusing on: ${retryFocus || 'general improvement'}
-
-Previous attempt:
-- Transcript: "${parentSession.transcript}"
-- Filler count: ${parentSession.filler_word_count || 'unknown'}
-- Previous feedback: "${parentSession.feedback?.improve || 'none'}"
-
-Your job:
-1. Detect ANY improvement, even subtle
-2. Acknowledge progress explicitly in "did_well"
-3. Adapt your coaching - don't repeat identical advice
-4. If they improved on retry focus, celebrate it
-
-Examples:
-- "Your structure is much clearer this time."
-- "Great - you reduced filler words from ${parentSession.filler_word_count || '5'} to fewer."
-- "This version sounds more confident and deliberate."
-
-CRITICAL: Make them feel their effort paid off.
-` : ''}
-
-===================================
-SMART SCORING SYSTEM
-===================================
-
-Score honestly but fairly. Think relative progress, not absolute perfection.
-
-Clarity: Is the core message understandable?
-- High: Clear, easy to follow
-- Medium: Mostly clear, some confusion
-- Low: Unclear or hard to understand
-
-Structure: Is the response logically organized?
-- High: Well-structured flow
-- Medium: Some structure, could be tighter
-- Low: Disorganized or rambling
-
-Confidence: Does delivery sound assured?
-- High: Confident, deliberate
-- Medium: Mostly confident, slight hesitation
-- Low: Uncertain, frequent pauses
-
-Scoring rules:
-- Default to Medium unless clearly High or Low
-- If retry shows improvement, adjust score up
-- Never score Low on all three - find at least one strength
-- Scores should motivate continued practice
-
-===================================
-FEEDBACK STRUCTURE (MAX 3 POINTS)
-===================================
-
-Provide feedback in this exact format:
-
-1. did_well: ONE specific strength (required)
-   - Reference their actual words or delivery
-   - Be genuine and specific
-   - No generic praise
-   - Example: "You opened with a clear statement that set context."
-
-2. improve: ONE most impactful improvement area (required)
-   - The single most important thing to work on
-   - Be constructive and actionable
-   - Example: "Your answer would be stronger with a specific example."
-
-3. tip: ONE immediately actionable next step (required)
-   - Simple, clear, doable right now
-   - Example: "Next time, pause 2 seconds before speaking to gather your thoughts."
-
-4. full_feedback: 2-3 sentences combining the above (required)
-   - Natural coaching voice
-   - Structure: strength + improvement + action
-   - Sound human, not robotic
-   - Example: "You communicated your main idea clearly. To make it even stronger, try adding a specific example next time. Before you speak, take a breath to organize your thoughts."
-
-5. reasoning: WHY you're giving this feedback (required)
-   - One sentence max
-   - Human language, no jargon
-   - Example: "Based on your sentence structure and pacing."
-   - Example: "Due to your clear opening but missing examples."
-
-6. rephrased_version: Better version of their response (required)
-   - Keep their core message
-   - Improve structure and confidence
-   - Realistic, not perfect
-   - Example: "I'm passionate about software engineering because I love solving complex problems. In my recent project, I built a feature that reduced processing time by 40%."
-
-7. retry_focus: Next focus area in 1-2 words (required)
-   - What to improve on retry
-   - Examples: "structure", "confidence", "specific examples", "reducing fillers"
-
-===================================
-COACHING TONE RULES
-===================================
-
-Sound like a real human coach:
-✓ Warm but honest
-✓ Encouraging but specific
-✓ Professional but friendly
-✓ Direct but kind
-
-Avoid sounding like:
-✗ Generic AI assistant
-✗ Harsh critic
-✗ Overly enthusiastic bot
-✗ Technical analyzer
-
-Language rules:
-- Use "you" and "your"
-- Keep sentences short
-- No buzzwords or jargon
-- No fake enthusiasm
-- No robotic patterns
-
-If input is weak or too short:
-Respond with: "That's okay - let's build your confidence step by step. Try expressing one clear idea next time."
-
-NEVER:
-- Hallucinate metrics you didn't measure
-- Claim medical/psychological expertise
-- Make absolute accuracy claims
-- Judge personal traits
-
-===================================
-RELIABILITY SAFEGUARDS
-===================================
-
-Handle edge cases gracefully:
-
-- If transcript is empty/unintelligible:
-  Set transcript to "[Unable to capture clear audio]"
-  Provide encouraging fallback coaching
-  
-- If response is too short (under 5 words):
-  Still give constructive feedback
-  Focus on "Let's practice expressing a fuller thought"
-  
-- If response is excellent:
-  Acknowledge it genuinely
-  Offer one subtle refinement
-  Don't invent problems
-
-- If unsure about scoring:
-  Default to Medium
-  Focus on what you CAN observe
-
-===================================
-OUTPUT FORMAT (JSON)
-===================================
-
-${language === 'hindi' ? `🔴 FINAL REMINDER: ALL text fields in this JSON MUST be in Hindi language. Every single field.` : `🔴 FINAL REMINDER: ALL text fields in this JSON MUST be in English language.`}
-
-Return this exact structure:`,
-        file_urls: [file_url],
-        response_json_schema: {
-          type: "object",
-          properties: {
-            transcript: { type: "string" },
-            scoring: {
-              type: "object",
-              properties: {
-                clarity: { type: "string", enum: ["low", "medium", "high"] },
-                structure: { type: "string", enum: ["low", "medium", "high"] },
-                confidence: { type: "string", enum: ["low", "medium", "high"] }
-              }
-            },
-            filler_word_count: { type: "number" },
-            did_well: { type: "string" },
-            improve: { type: "string" },
-            tip: { type: "string" },
-            full_feedback: { type: "string" },
-            reasoning: { type: "string", description: "Brief explanation of why this feedback was given" },
-            rephrased_version: { type: "string", description: "Improved version of part of their response" },
-            retry_focus: { type: "string", description: "One word or short phrase: what to focus on next" }
-          }
-        }
+      // Build and send the AI coaching prompt (all prompt logic in aiService.js)
+      const { buildCoachingPrompt } = await import('@/api/aiService.js');
+      const coachingPrompt = buildCoachingPrompt({
+        mode,
+        currentPrompt,
+        transcript: capturedTranscript,
+        language,
+        feedbackStyle,
+        coachingFocus,
+        interviewType,
+        jobRole,
+        experienceLevel,
+        parentSession,
+        retryFocus,
       });
 
-      // Update session with all analysis data including reasoning
-      await base44.entities.PracticeSession.update(session.id, {
-        transcript: analysis.transcript,
+      const analysis = await api.integrations.Core.InvokeLLM({
+        prompt: coachingPrompt,
+        transcript: capturedTranscript,
+      });
+
+      console.log('[VoicePractice] AI response:', { isMock: analysis._isMock, scoring: analysis.scoring });
+
+      // Update session with analysis
+      await api.entities.PracticeSession.update(session.id, {
+        transcript: capturedTranscript,
         feedback: {
           did_well: analysis.did_well,
           improve: analysis.improve,
           tip: analysis.tip,
           full_feedback: analysis.full_feedback,
           reasoning: analysis.reasoning || "Based on your delivery and content clarity.",
-          rephrased_version: analysis.rephrased_version
+          rephrased_version: analysis.rephrased_version,
         },
         scoring: analysis.scoring,
         filler_word_count: analysis.filler_word_count,
         retry_focus: analysis.retry_focus,
-        parent_session_id: parentSessionId || null
+        parent_session_id: parentSessionId || null,
       });
 
-      // Navigate to feedback page with coaching state
       setSessionState('coaching');
-      navigate(createPageUrl('AIFeedback') + `?session=${session.id}`);
+      navigate(createPageUrl('AIFeedback') + `?session=${session.id}${useDemoTranscript ? '&demo=true' : ''}`);
       
     } catch (error) {
       console.error('Error processing recording:', error);
+      setProcessingError(error.message || 'Something went wrong');
       
-      // Demo fallback - if recording fails, create demo session with full intelligence
-      // Enhanced demo mode with intelligent fallback
-      const demoTranscript = mode === 'interview' 
-        ? "I'm a software engineer with five years of experience. I've worked on various projects and I really enjoy problem solving. Um, I think my biggest strength is being able to work well with teams."
-        : mode === 'presentation'
-        ? "So today I want to talk about our new project. It's really exciting and, um, we think it will be great for our users. The main benefits are efficiency and ease of use."
-        : "I really love hiking. It's something I do every weekend. Um, you know, being in nature is really relaxing and it helps me clear my mind.";
-
-      // Generate intelligent demo feedback using enhanced AI logic
-      let demoFeedback;
+      // Emergency fallback â€” create demo session using transcript-aware mock
       try {
-        const demoLanguageInstruction = language === 'hindi'
-          ? `🔴 MANDATORY: Generate ALL feedback in Hindi language ONLY. No English sentences allowed.`
-          : `🔴 MANDATORY: Generate ALL feedback in English language ONLY.`;
+        const fallbackTranscript = (transcriptRef.current || '').trim() || "I have experience in this area and enjoy working with teams.";
         
-        demoFeedback = await base44.integrations.Core.InvokeLLM({
-          prompt: `${demoLanguageInstruction}
+        const { buildCoachingPrompt: buildPrompt } = await import('@/api/aiService.js');
+        const fallbackPrompt = buildPrompt({ mode, currentPrompt, transcript: fallbackTranscript, language, feedbackStyle, coachingFocus });
+        const fallbackAnalysis = await api.integrations.Core.InvokeLLM({ prompt: fallbackPrompt, transcript: fallbackTranscript });
 
-You are a professional communication coach. Analyze this ${mode} practice response to: "${currentPrompt}"
-
-      User's response: "${demoTranscript}"
-
-      Provide coaching feedback following these rules:
-      - did_well: ONE specific positive from their actual words
-      - improve: ONE clear improvement area  
-      - tip: ONE actionable suggestion
-      - full_feedback: 2-3 sentences (positive + improvement + tip)
-      - rephrased_version: Improved version of part of their response
-
-      Mode-specific focus:
-      ${mode === 'interview' ? 'Structure and relevance to question' : mode === 'presentation' ? 'Confidence and clear delivery' : 'Natural fluency and conversational ease'}`,
-          response_json_schema: {
-            type: "object",
-            properties: {
-              did_well: { type: "string" },
-              improve: { type: "string" },
-              tip: { type: "string" },
-              full_feedback: { type: "string" },
-              reasoning: { type: "string" },
-              rephrased_version: { type: "string" }
-              }
-              }
-              });
-              } catch {
-              // Fallback to hardcoded demo feedback
-              demoFeedback = {
-          did_well: mode === 'interview'
-            ? "You mentioned specific experience and highlighted teamwork as a strength - that's concrete and relevant."
-            : mode === 'presentation'
-            ? "You clearly identified the key benefits - efficiency and ease of use. That's helpful context."
-            : "You conveyed genuine enthusiasm for hiking and explained how it benefits you.",
-          improve: mode === 'interview'
-            ? "Your answer could be more structured - try moving from background to achievements to why you're interested."
-            : mode === 'presentation'
-            ? "Reduce filler words and add a clear opening that previews your main points."
-            : "Work on reducing filler words like 'um' and 'you know' for more confident delivery.",
-          tip: mode === 'interview'
-            ? "Before answering, take a breath and mentally outline: experience, achievement, and why this role."
-            : mode === 'presentation'
-            ? "Start with 'Today I'll cover three points' - this frames your message clearly."
-            : "Try recording yourself and count your filler words - awareness helps improvement.",
-          full_feedback: mode === 'interview'
-            ? "You mentioned specific experience and teamwork - that's relevant. To strengthen your answer, structure it from background to achievements to interest in the role. Take a breath before answering to outline these parts mentally."
-            : mode === 'presentation'
-            ? "You identified key benefits clearly. Reducing filler words and previewing your points upfront will strengthen delivery. Try opening with 'Today I'll cover three points' next time."
-            : "You conveyed enthusiasm well. Reducing filler words like 'um' will make you sound more confident. Record yourself and count fillers - awareness drives improvement.",
-          reasoning: mode === 'interview'
-            ? "Based on answer structure and relevance to the question."
-            : mode === 'presentation'
-            ? "Due to delivery pacing and use of transitional language."
-            : "Based on conversational fluency and filler word usage.",
-          rephrased_version: mode === 'interview'
-            ? "I'm a software engineer with five years of experience in problem-solving and team collaboration. My greatest strength is building relationships that drive project success."
-            : mode === 'presentation'
-            ? "Today I'll share our new project, which delivers two key benefits: improved efficiency and seamless ease of use."
-            : "Hiking is my passion - every weekend, I'm outdoors. Being in nature clears my mind and helps me recharge."
-        };
+        const demoSession = await api.entities.PracticeSession.create({
+          mode,
+          prompt: currentPrompt,
+          transcript: fallbackTranscript,
+          scoring: fallbackAnalysis.scoring,
+          filler_word_count: fallbackAnalysis.filler_word_count,
+          retry_focus: fallbackAnalysis.retry_focus,
+          feedback: {
+            did_well: fallbackAnalysis.did_well,
+            improve: fallbackAnalysis.improve,
+            tip: fallbackAnalysis.tip,
+            full_feedback: fallbackAnalysis.full_feedback,
+            reasoning: fallbackAnalysis.reasoning,
+            rephrased_version: fallbackAnalysis.rephrased_version,
+          },
+          parent_session_id: parentSessionId || null,
+        });
+        
+        navigate(createPageUrl('AIFeedback') + `?session=${demoSession.id}&demo=true`);
+      } catch (innerError) {
+        console.error('Critical error in fallback:', innerError);
+        setIsProcessing(false);
+        setSessionState('ready');
       }
-
-      const demoSession = await base44.entities.PracticeSession.create({
-        mode,
-        prompt: currentPrompt,
-        transcript: demoTranscript,
-        scoring: {
-          clarity: mode === 'interview' ? 'medium' : mode === 'presentation' ? 'medium' : 'high',
-          structure: mode === 'interview' ? 'medium' : mode === 'presentation' ? 'medium' : 'medium',
-          confidence: mode === 'interview' ? 'medium' : mode === 'presentation' ? 'medium' : 'high'
-        },
-        filler_word_count: mode === 'interview' ? 1 : mode === 'presentation' ? 1 : 2,
-        retry_focus: mode === 'interview' ? 'structure' : mode === 'presentation' ? 'confidence' : 'fluency',
-        feedback: demoFeedback,
-        parent_session_id: parentSessionId || null
-      });
-      
-      navigate(createPageUrl('AIFeedback') + `?session=${demoSession.id}&demo=true`);
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
+
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900 safe-area-inset transition-colors duration-300">
@@ -829,7 +536,7 @@ You are a professional communication coach. Analyze this ${mode} practice respon
           >
             <div className="flex items-center justify-center gap-3 mb-2">
               <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                {mode === 'presentation' ? `Practice Segment ${questionNumber} of ${totalQuestions} • Introduction` : `Question ${questionNumber} of ${totalQuestions}`}
+                {mode === 'presentation' ? `Practice Segment ${questionNumber} of ${totalQuestions} â€¢ Introduction` : `Question ${questionNumber} of ${totalQuestions}`}
               </span>
             </div>
             <div className="w-full max-w-md mx-auto h-1 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -854,7 +561,7 @@ You are a professional communication coach. Analyze this ${mode} practice respon
             >
               <Target className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                <span className="font-semibold">{language === 'english' ? 'Focus on:' : 'फोकस:'}</span> {retryFocus}
+                <span className="font-semibold">{language === 'english' ? 'Focus on:' : 'à¤«à¥‹à¤•à¤¸:'}</span> {retryFocus}
               </p>
             </motion.div>
           )}
@@ -871,8 +578,8 @@ You are a professional communication coach. Analyze this ${mode} practice respon
                 <div className="w-1.5 h-1.5 bg-blue-500 dark:bg-blue-400 rounded-full" />
                 <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-200 font-medium">
                   {language === 'english'
-                    ? `${interviewType === 'behavioral' ? 'HR / Behavioral' : interviewType.charAt(0).toUpperCase() + interviewType.slice(1)} Interview • ${jobRole} • ${experienceLevel === 'fresher' ? 'Fresher' : experienceLevel === '1-3' ? '1–3 years' : experienceLevel === '3-7' ? '3–7 years' : 'Senior'}`
-                    : `${interviewType === 'behavioral' ? 'एचआर / व्यवहारिक' : interviewType === 'technical' ? 'तकनीकी' : interviewType === 'managerial' ? 'प्रबंधकीय' : interviewType === 'leadership' ? 'नेतृत्व' : interviewType} इंटरव्यू • ${jobRole} • ${experienceLevel === 'fresher' ? 'फ्रेशर' : experienceLevel === '1-3' ? '1–3 वर्ष' : experienceLevel === '3-7' ? '3–7 वर्ष' : 'सीनियर'}`}
+                    ? `${interviewType === 'behavioral' ? 'HR / Behavioral' : interviewType.charAt(0).toUpperCase() + interviewType.slice(1)} Interview â€¢ ${jobRole} â€¢ ${experienceLevel === 'fresher' ? 'Fresher' : experienceLevel === '1-3' ? '1â€“3 years' : experienceLevel === '3-7' ? '3â€“7 years' : 'Senior'}`
+                    : `${interviewType === 'behavioral' ? 'à¤à¤šà¤†à¤° / à¤µà¥à¤¯à¤µà¤¹à¤¾à¤°à¤¿à¤•' : interviewType === 'technical' ? 'à¤¤à¤•à¤¨à¥€à¤•à¥€' : interviewType === 'managerial' ? 'à¤ªà¥à¤°à¤¬à¤‚à¤§à¤•à¥€à¤¯' : interviewType === 'leadership' ? 'à¤¨à¥‡à¤¤à¥ƒà¤¤à¥à¤µ' : interviewType} à¤‡à¤‚à¤Ÿà¤°à¤µà¥à¤¯à¥‚ â€¢ ${jobRole} â€¢ ${experienceLevel === 'fresher' ? 'à¤«à¥à¤°à¥‡à¤¶à¤°' : experienceLevel === '1-3' ? '1â€“3 à¤µà¤°à¥à¤·' : experienceLevel === '3-7' ? '3â€“7 à¤µà¤°à¥à¤·' : 'à¤¸à¥€à¤¨à¤¿à¤¯à¤°'}`}
                 </p>
               </div>
             </motion.div>
@@ -888,7 +595,7 @@ You are a professional communication coach. Analyze this ${mode} practice respon
               <div className="bg-purple-50/95 dark:bg-purple-900/30 backdrop-blur-sm border border-purple-200 dark:border-purple-800 rounded-full px-4 py-2 flex items-center gap-2 shadow-sm">
                 <div className="w-1.5 h-1.5 bg-purple-500 dark:bg-purple-400 rounded-full" />
                 <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-200 font-medium">
-                  📊 {language === 'english' ? 'Presentation' : 'प्रेजेंटेशन'} • {isManual ? (language === 'english' ? 'Custom Topic' : 'कस्टम विषय') : (language === 'english' ? 'AI-Generated Topic' : 'AI-जनित विषय')}
+                  ðŸ“Š {language === 'english' ? 'Presentation' : 'à¤ªà¥à¤°à¥‡à¤œà¥‡à¤‚à¤Ÿà¥‡à¤¶à¤¨'} â€¢ {isManual ? (language === 'english' ? 'Custom Topic' : 'à¤•à¤¸à¥à¤Ÿà¤® à¤µà¤¿à¤·à¤¯') : (language === 'english' ? 'AI-Generated Topic' : 'AI-à¤œà¤¨à¤¿à¤¤ à¤µà¤¿à¤·à¤¯')}
                 </p>
               </div>
             </motion.div>
@@ -904,7 +611,7 @@ You are a professional communication coach. Analyze this ${mode} practice respon
               <div className="bg-green-50/95 dark:bg-green-900/30 backdrop-blur-sm border border-green-200 dark:border-green-800 rounded-full px-4 py-2 flex items-center gap-2 shadow-sm">
                 <div className="w-1.5 h-1.5 bg-green-500 dark:bg-green-400 rounded-full" />
                 <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-200 font-medium">
-                  💬 {language === 'english' ? 'Casual Speaking • Everyday Conversation' : 'रोज़मर्रा की बातचीत'}
+                  ðŸ’¬ {language === 'english' ? 'Casual Speaking â€¢ Everyday Conversation' : 'à¤°à¥‹à¤œà¤¼à¤®à¤°à¥à¤°à¤¾ à¤•à¥€ à¤¬à¤¾à¤¤à¤šà¥€à¤¤'}
                 </p>
               </div>
             </motion.div>
@@ -1014,7 +721,7 @@ You are a professional communication coach. Analyze this ${mode} practice respon
                           {t('listening')}
                         </span>
                       </motion.div>
-                      <VoiceWaveform isRecording={isRecording} />
+                      <VoiceWaveform isRecording={isRecording} audioStream={audioStream} />
                       <p className="text-gray-500 dark:text-gray-400 text-sm mt-3">{formatTime(recordingTime)}</p>
 
                       {/* Live Coaching Hint */}
@@ -1028,7 +735,7 @@ You are a professional communication coach. Analyze this ${mode} practice respon
                             className="mt-3 max-w-xs"
                           >
                             <p className="text-xs text-blue-600 dark:text-blue-400 text-center leading-relaxed">
-                              💡 {coachingHint}
+                              ðŸ’¡ {coachingHint}
                             </p>
                           </motion.div>
                         )}

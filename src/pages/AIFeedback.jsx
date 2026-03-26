@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Play, Pause, RotateCcw, CheckCircle, Target, Lightbulb, Volume2, TrendingUp, Sparkles } from 'lucide-react';
 import { createPageUrl } from '@/utils';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/apiClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -57,7 +57,7 @@ export default function AIFeedback() {
     if (!sessionId) return;
     
     try {
-      const sessions = await base44.entities.PracticeSession.filter({ id: sessionId });
+      const sessions = await api.entities.PracticeSession.filter({ id: sessionId });
       if (sessions.length > 0) {
         setSession(sessions[0]);
       }
@@ -71,7 +71,7 @@ export default function AIFeedback() {
   const checkConfidenceTrend = async () => {
     try {
       // Get last 3 sessions
-      const recentSessions = await base44.entities.PracticeSession.list('-created_date', 3);
+      const recentSessions = await api.entities.PracticeSession.list('-created_date', 3);
       setSessionCount(recentSessions.length);
       
       if (recentSessions.length >= 2) {
@@ -99,7 +99,7 @@ export default function AIFeedback() {
 
   const generateVoiceProfile = async () => {
     try {
-      const recentSessions = await base44.entities.PracticeSession.list('-created_date', 5);
+      const recentSessions = await api.entities.PracticeSession.list('-created_date', 5);
 
       if (recentSessions.length >= 3) {
         // Analyze communication patterns with enhanced intelligence
@@ -163,7 +163,7 @@ export default function AIFeedback() {
 
   const checkPracticeStreak = async () => {
     try {
-      const allSessions = await base44.entities.PracticeSession.list('-created_date', 30);
+      const allSessions = await api.entities.PracticeSession.list('-created_date', 30);
       
       if (allSessions.length >= 2) {
         const today = new Date();
