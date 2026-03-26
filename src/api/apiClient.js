@@ -4,6 +4,8 @@
  * Delegates AI calls to aiService.js.
  */
 
+import logger from "@/lib/logger.js";
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
@@ -25,7 +27,7 @@ const safeStringify = (key, value) => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
-    console.warn("[apiClient] localStorage write failed:", e);
+    logger.warn("localStorage write failed:", e);
   }
 };
 
@@ -239,13 +241,10 @@ const integrations = { Core };
 
 const appLogs = {
   async logUserInApp(pageName) {
-    if (import.meta.env.DEV) console.log(`[orato] Page: ${pageName}`);
+    if (import.meta.env.DEV) logger.debug(`Page: ${pageName}`);
   },
 };
 
 // ── Export ────────────────────────────────────────────────────────────────────
 
 export const api = { auth, entities, integrations, appLogs };
-
-// Backward compat alias (temporary — will be removed in future)
-export const base44 = api;

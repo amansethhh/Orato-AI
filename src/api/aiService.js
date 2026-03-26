@@ -1,56 +1,24 @@
 /**
  * AI Service Layer — Orato AI
  *
- * Providers:  OpenAI (gpt-4o-mini) · Google Gemini (gemini-2.0-flash) · Mock fallback
- * Features:   Response validation · 15 s timeout · 2-attempt retry · Rate-limit handling
- *             Response caching (5 min TTL) · Adaptive question difficulty · Debug logging
+ * Routes all AI calls through the backend proxy (server/index.js).
+ * API keys NEVER touch the frontend.
+ *
+ * Features:   Backend proxy · Local validation · Deterministic score blending
+ *             Response caching (5 min TTL) · Adaptive question difficulty
+ *             Mock fallback when backend is unreachable
  */
+
+import logger from "@/lib/logger.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const API_TIMEOUT_MS = 15000;
-const MAX_RETRIES = 2;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const DEBUG = import.meta.env.DEV;
-
-const SYSTEM_PROMPT = `You are an expert communication coach named "Coach Orato". You have a warm, professional personality and years of experience helping people communicate better.
-
-CORE PRINCIPLES:
-1. Analyze spoken responses based ONLY on delivery (clarity, confidence, structure, fluency) — NOT content correctness.
-2. ALWAYS reference the user's ACTUAL words. Quote specific phrases they used.
-3. NEVER give generic feedback. Every comment must tie to something specific in their transcript.
-4. Sound like a real human coach, not an AI. Use natural language, brief sentences, and concrete examples.
-
-ANTI-GENERIC RULES:
-- Instead of "Good structure" → say "Starting with 'In my previous role...' immediately set context — that's strong."
-- Instead of "Improve confidence" → say "The phrase 'I think maybe...' at the start signals uncertainty. Try dropping 'I think' and stating it directly."
-- Instead of "Practice more" → say "Try this: record yourself saying your first sentence three times, each time removing one filler word."
-
-You must ALWAYS respond with valid JSON matching the exact schema requested. Never include markdown formatting or code fences in your response.`;
-
-// ── Feedback Schema ──────────────────────────────────────────────────────────
-
-const FEEDBACK_SCHEMA = {
-  type: "object",
-  properties: {
-    feedback:      { type: "string", description: "2-3 sentence coaching narrative referencing specific phrases from the transcript" },
-    clarity:       { type: "number", description: "0-100 score" },
-    confidence:    { type: "number", description: "0-100 score" },
-    structure:     { type: "number", description: "0-100 score" },
-    fluency:       { type: "number", description: "0-100 score" },
-    strengths:     { type: "array", items: { type: "string" }, description: "1-3 specific strengths, each referencing a phrase from the transcript" },
-    improvements:  { type: "array", items: { type: "string" }, description: "1-3 improvement areas with concrete suggestions" },
-    tip:           { type: "string", description: "One immediately actionable next step" },
-    sampleAnswer:  { type: "string", description: "Improved version of the response preserving the speaker's core message" },
-  },
-  required: ["feedback", "clarity", "confidence", "structure", "fluency", "strengths", "improvements", "tip", "sampleAnswer"],
-};
+const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_TIMEOUT_MS = 15_000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const IS_MOCK = import.meta.env.VITE_MOCK_MODE === "true";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function log(label, data) {
-  if (DEBUG) console.log(`[aiService] ${label}:`, data);
-}
 
 function clampScore(val) {
   const n = Number(val);
@@ -64,7 +32,6 @@ export function scoreToLevel(score) {
   return "low";
 }
 
-/** Simple string hash for cache keys. */
 function hashStr(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -96,30 +63,26 @@ function computeBaseScores(transcript) {
   const fillerCount = countFillers(text);
   const avgWordsPerSentence = sentences > 0 ? words / sentences : words;
 
-  // Clarity: based on sentence structure and word choice
   let clarity = 55;
-  if (avgWordsPerSentence >= 8 && avgWordsPerSentence <= 20) clarity += 15; // good sentence length
-  if (sentences >= 2) clarity += 10; // multiple sentences = better explanation
+  if (avgWordsPerSentence >= 8 && avgWordsPerSentence <= 20) clarity += 15;
+  if (sentences >= 2) clarity += 10;
   if (words >= 20) clarity += 5;
 
-  // Confidence: penalized by fillers and short responses
   let confidence = 55;
-  confidence -= Math.min(25, fillerCount * 5); // each filler word = -5
+  confidence -= Math.min(25, fillerCount * 5);
   if (words >= 30) confidence += 10;
   if (text.includes("I believe") || text.includes("I'm confident") || text.includes("clearly")) confidence += 5;
   if (text.includes("I think maybe") || text.includes("I guess") || text.includes("not sure")) confidence -= 10;
 
-  // Structure: beginning + middle + end
   let structure = 50;
-  if (sentences >= 3) structure += 15; // enough content for structure
-  if (sentences >= 2 && sentences <= 6) structure += 10; // not too rambling
-  if (words > 100) structure -= 5; // too long can mean rambling
+  if (sentences >= 3) structure += 15;
+  if (sentences >= 2 && sentences <= 6) structure += 10;
+  if (words > 100) structure -= 5;
 
-  // Fluency: smoothness
   let fluency = 55;
   fluency -= Math.min(20, fillerCount * 4);
   if (avgWordsPerSentence >= 6 && avgWordsPerSentence <= 18) fluency += 10;
-  if (words >= 15 && words <= 80) fluency += 10; // sweet spot
+  if (words >= 15 && words <= 80) fluency += 10;
 
   return {
     clarity: clampScore(clarity),
@@ -144,7 +107,6 @@ function getCached(key) {
 }
 
 function setCache(key, data) {
-  // Keep cache small
   if (_cache.size > 50) {
     const oldest = _cache.keys().next().value;
     _cache.delete(oldest);
@@ -152,15 +114,44 @@ function setCache(key, data) {
   _cache.set(key, { data, ts: Date.now() });
 }
 
-// ── Fetch with Timeout ───────────────────────────────────────────────────────
+// ── Backend Proxy Call ───────────────────────────────────────────────────────
 
-async function fetchWithTimeout(url, options, timeoutMs = API_TIMEOUT_MS) {
+async function callBackendProxy(endpoint, body) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
     clearTimeout(timer);
+
+    if (res.status === 400) {
+      const err = await res.json().catch(() => ({}));
+      logger.warn("Backend validation error", err);
+      throw new Error(`VALIDATION: ${err.details?.join(", ") || "Bad request"}`);
+    }
+
+    if (res.status === 429) {
+      throw new Error("RATE_LIMITED");
+    }
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      // Even 500 errors may contain fallback data from the backend
+      if (errBody.feedback) return errBody;
+      throw new Error(`Backend HTTP ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") throw new Error("TIMEOUT");
+    throw err;
   }
 }
 
@@ -179,112 +170,6 @@ function validateFeedback(obj) {
     tip:           typeof obj.tip === "string" && obj.tip.length > 3 ? obj.tip : "Try again with more detail.",
     sampleAnswer:  typeof obj.sampleAnswer === "string" ? obj.sampleAnswer : "",
   };
-}
-
-function safeParse(raw) {
-  if (typeof raw !== "string") return raw;
-  let text = raw.trim();
-  if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
-  }
-  return JSON.parse(text);
-}
-
-// ── Provider: OpenAI ─────────────────────────────────────────────────────────
-
-async function callOpenAI(prompt, apiKey) {
-  const url = "https://api.openai.com/v1/chat/completions";
-  const body = {
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0.6,
-    max_tokens: 1400,
-  };
-
-  log("OpenAI request", { model: body.model, promptLength: prompt.length });
-
-  const res = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  // Rate limit handling
-  if (res.status === 429) {
-    const retryAfter = parseInt(res.headers.get("retry-after") || "3", 10);
-    log("Rate limited, waiting", `${retryAfter}s`);
-    await new Promise(r => setTimeout(r, retryAfter * 1000));
-    throw new Error(`OpenAI rate limited (429). Retrying after ${retryAfter}s.`);
-  }
-
-  if (res.status === 401) {
-    throw new Error("OpenAI: Invalid API key (401). Switching to mock.");
-  }
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`OpenAI ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("OpenAI: empty response");
-
-  log("OpenAI raw response", content);
-  return safeParse(content);
-}
-
-// ── Provider: Google Gemini ──────────────────────────────────────────────────
-
-async function callGemini(prompt, apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-  const body = {
-    contents: [
-      { parts: [{ text: `${SYSTEM_PROMPT}\n\n${prompt}` }] },
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.6,
-      maxOutputTokens: 1400,
-    },
-  };
-
-  log("Gemini request", { promptLength: prompt.length });
-
-  const res = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (res.status === 429) {
-    await new Promise(r => setTimeout(r, 3000));
-    throw new Error("Gemini rate limited (429). Retrying.");
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    throw new Error("Gemini: Invalid API key. Switching to mock.");
-  }
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Gemini ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini: empty response");
-
-  log("Gemini raw response", text);
-  return safeParse(text);
 }
 
 // ── Mock Fallback (transcript-aware) ─────────────────────────────────────────
@@ -401,7 +286,6 @@ const QUESTION_POOLS = {
   },
 };
 
-/** Pick adaptive difficulty based on recent scores. */
 function pickDifficulty(previousScores) {
   if (!previousScores || previousScores.length === 0) return "medium";
   const avg = previousScores.reduce((a, b) => a + b, 0) / previousScores.length;
@@ -414,154 +298,112 @@ function pickDifficulty(previousScores) {
 
 /**
  * Detect which AI provider is available.
- * Respects VITE_AI_PROVIDER preference.
+ * In Phase 3 this is simplified: either "backend" (if backend is reachable) or "mock".
  */
 export function getProvider() {
-  const forceMock = import.meta.env.VITE_MOCK_MODE === "true";
-  if (forceMock) return "mock";
-
-  const pref = (import.meta.env.VITE_AI_PROVIDER || "auto").toLowerCase();
-  const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-  if (pref === "openai" && openaiKey?.length > 10) return "openai";
-  if (pref === "gemini" && geminiKey?.length > 10) return "gemini";
-
-  // Auto: try openai first, then gemini
-  if (openaiKey?.length > 10) return "openai";
-  if (geminiKey?.length > 10) return "gemini";
-  return "mock";
+  if (IS_MOCK) return "mock";
+  return "backend";
 }
 
 /**
- * Call the AI with retry + caching.
+ * Call the AI through the backend proxy, with client-side score blending.
  * Always returns a validated feedback object — never throws.
  *
  * @param {string}  prompt       Full prompt (already assembled).
  * @param {string}  transcript   The user's spoken text (for deterministic scoring).
- * @param {boolean} skipCache    If true, bypass the response cache (e.g. retries).
+ * @param {boolean} skipCache    If true, bypass the response cache.
  * @returns {{ data: object, provider: string, isMock: boolean }}
  */
 export async function invokeLLM(prompt, transcript = "", skipCache = false) {
   const provider = getProvider();
-  log("Provider selected", provider);
+  logger.info("AI provider", provider);
 
-  // Mock mode
+  // Mock mode — no backend needed
   if (provider === "mock") {
     const mock = getMockFeedback(transcript);
-    log("Mock feedback (transcript-aware)", mock);
     return { data: mock, provider: "mock", isMock: true };
   }
 
-  // Cache check
+  // Client-side cache check
   const cacheKey = hashStr(prompt);
   if (!skipCache) {
     const cached = getCached(cacheKey);
     if (cached) {
-      log("Cache hit", cacheKey);
-      return { data: cached, provider: provider + "-cached", isMock: false };
+      logger.info("Cache hit", cacheKey);
+      return { data: cached, provider: "backend-cached", isMock: false };
     }
   }
 
-  const apiKey = provider === "openai"
-    ? import.meta.env.VITE_OPENAI_API_KEY
-    : import.meta.env.VITE_GEMINI_API_KEY;
+  try {
+    const raw = await callBackendProxy("/api/ai", { prompt, transcript });
 
-  const callFn = provider === "openai" ? callOpenAI : callGemini;
+    // Blend backend AI scores with client-side deterministic scores (60/40)
+    const baseScores = computeBaseScores(transcript);
+    if (raw && typeof raw === "object") {
+      raw.clarity     = Math.round((clampScore(raw.clarity)     * 0.6) + (baseScores.clarity     * 0.4));
+      raw.confidence  = Math.round((clampScore(raw.confidence)  * 0.6) + (baseScores.confidence  * 0.4));
+      raw.structure   = Math.round((clampScore(raw.structure)   * 0.6) + (baseScores.structure   * 0.4));
+      raw.fluency     = Math.round((clampScore(raw.fluency)     * 0.6) + (baseScores.fluency     * 0.4));
+    }
 
-  const schemaInstruction = `\n\nYou MUST respond with a single valid JSON object matching this exact schema — no markdown, no explanation, just the JSON:\n${JSON.stringify(FEEDBACK_SCHEMA, null, 2)}`;
-  const fullPrompt = prompt + schemaInstruction;
+    const validated = validateFeedback(raw);
+    if (validated) {
+      setCache(cacheKey, validated);
+      logger.info("Validated feedback from backend");
+      return { data: validated, provider: raw._provider || "backend", isMock: !!raw._isMock };
+    }
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      log(`Attempt ${attempt}/${MAX_RETRIES}`, { provider });
+    logger.warn("Backend response validation failed", raw);
+  } catch (err) {
+    logger.error("Backend proxy error", err.message);
 
-      const raw = await callFn(fullPrompt, apiKey);
-
-      // Merge AI scores with deterministic base scores for consistency
-      const baseScores = computeBaseScores(transcript);
-      if (raw && typeof raw === "object") {
-        // Blend: 60% AI score + 40% deterministic score for consistency
-        raw.clarity     = Math.round((clampScore(raw.clarity)     * 0.6) + (baseScores.clarity     * 0.4));
-        raw.confidence  = Math.round((clampScore(raw.confidence)  * 0.6) + (baseScores.confidence  * 0.4));
-        raw.structure   = Math.round((clampScore(raw.structure)   * 0.6) + (baseScores.structure   * 0.4));
-        raw.fluency     = Math.round((clampScore(raw.fluency)     * 0.6) + (baseScores.fluency     * 0.4));
-      }
-
-      const validated = validateFeedback(raw);
-      if (validated) {
-        setCache(cacheKey, validated);
-        log("Validated feedback", validated);
-        return { data: validated, provider, isMock: false };
-      }
-      log("Validation failed, raw was", raw);
-    } catch (err) {
-      log(`Attempt ${attempt} error`, err.message);
-
-      // If auth error, don't retry — fall through to mock
-      if (err.message.includes("401") || err.message.includes("403") || err.message.includes("Invalid API key")) {
-        break;
-      }
-
-      if (attempt === MAX_RETRIES) {
-        console.error("[aiService] All retries exhausted:", err.message);
-      }
+    // Specific error handling for frontend UX
+    if (err.message === "RATE_LIMITED") {
+      logger.warn("Rate limited — falling back to transcript-aware mock");
+    } else if (err.message === "TIMEOUT") {
+      logger.warn("Backend timed out — falling back to mock");
+    } else if (err.message.startsWith("VALIDATION:")) {
+      logger.warn("Request validation error:", err.message);
     }
   }
 
-  // Fallback to transcript-aware mock
+  // Fallback to client-side transcript-aware mock
   const fallback = getMockFeedback(transcript);
-  log("Falling back to transcript-aware mock", fallback);
+  logger.info("Using local mock fallback");
   return { data: fallback, provider: "mock-fallback", isMock: true };
 }
 
 /**
  * Generate an adaptive practice question.
- *
- * @param {string} contextPrompt
- * @param {{ mode, experienceLevel, previousScores }} opts
+ * Tries backend first, falls back to local pool.
  */
 export async function generateQuestion(contextPrompt, opts = {}) {
   const { mode = "interview", experienceLevel, previousScores } = opts;
   const difficulty = pickDifficulty(previousScores);
   const provider = getProvider();
 
-  // Always pick from pool first (fast), optionally enhance with AI
+  // Always pick from pool first (fast fallback)
   const pool = QUESTION_POOLS[mode]?.[difficulty] || QUESTION_POOLS.interview.medium;
   const poolQuestion = pool[Math.floor(Math.random() * pool.length)];
 
   if (provider === "mock") return poolQuestion;
 
-  // Try AI for a more tailored question
-  const apiKey = provider === "openai"
-    ? import.meta.env.VITE_OPENAI_API_KEY
-    : import.meta.env.VITE_GEMINI_API_KEY;
-  const callFn = provider === "openai" ? callOpenAI : callGemini;
-
+  // Try backend for AI-tailored question
   const difficultyContext = difficulty === "hard"
     ? "Generate a challenging, nuanced question requiring specific examples and complex reasoning."
     : difficulty === "easy"
     ? "Generate a straightforward, approachable question suitable for someone just starting to practice."
     : "Generate a moderate-difficulty question that encourages thoughtful response.";
 
-  const experienceContext = experienceLevel
-    ? `The user has ${experienceLevel} years of experience.`
-    : "";
+  const experienceContext = experienceLevel ? `The user has ${experienceLevel} years of experience.` : "";
 
-  const fullPrompt = `${contextPrompt}
-
-${difficultyContext}
-${experienceContext}
-Difficulty level: ${difficulty}
-
-Respond with a JSON object: { "question": "<your question here>" }. Only the JSON, no extra text.`;
+  const fullPrompt = `${contextPrompt}\n\n${difficultyContext}\n${experienceContext}\nDifficulty level: ${difficulty}\n\nRespond with a JSON object: { "question": "<your question here>" }. Only the JSON, no extra text.`;
 
   try {
-    const raw = await callFn(fullPrompt, apiKey);
+    const raw = await callBackendProxy("/api/ai/question", { prompt: fullPrompt });
     if (raw?.question?.length > 10) return raw.question;
-    if (raw?.prompt?.length > 10) return raw.prompt;
   } catch (err) {
-    log("generateQuestion AI error, using pool", err.message);
+    logger.warn("Question generation failed, using pool", err.message);
   }
 
   return poolQuestion;
@@ -580,7 +422,7 @@ export function scoresToLevels(scores) {
 
 /**
  * Build the full coaching analysis prompt.
- * Now deeply analyzes transcript and provides deterministic scoring hints.
+ * Deeply analyzes transcript and provides deterministic scoring hints.
  */
 export function buildCoachingPrompt({
   mode,
@@ -595,14 +437,12 @@ export function buildCoachingPrompt({
   parentSession,
   retryFocus,
 }) {
-  // Pre-analyze transcript for the AI
   const fillerCount = countFillers(transcript);
   const wordCount = (transcript || "").split(/\s+/).length;
   const sentenceCount = (transcript || "").split(/[.!?]+/).filter(s => s.trim()).length;
   const baseScores = computeBaseScores(transcript);
   const firstPhrase = (transcript || "").split(/[,.!?]/)[0]?.trim() || "";
 
-  // Style
   const styleMap = {
     encouraging: "Tone: Warm, supportive, motivating. Start with genuine positives. Frame improvements as growth opportunities.",
     direct: "Tone: Concise, action-focused. Get straight to the point. No filler praise. Be efficient and specific.",
@@ -610,7 +450,6 @@ export function buildCoachingPrompt({
   };
   const styleInstructions = styleMap[feedbackStyle] || styleMap.balanced;
 
-  // Focus
   const focusMap = {
     confidence: "PRIMARY FOCUS: Confidence. Look for hesitation markers, hedging language ('I think', 'maybe'), pacing, and vocal certainty.",
     clarity: "PRIMARY FOCUS: Clarity. Is the core idea immediately understandable? Are there ambiguous statements?",
@@ -619,21 +458,17 @@ export function buildCoachingPrompt({
   };
   const focusInstructions = focusMap[coachingFocus] || "BALANCED FOCUS: Evaluate all dimensions equally.";
 
-  // Language
   const langBlock = language === "hindi"
     ? `LANGUAGE: Generate ALL text in Hindi. Only technical nouns may be English. Every field must be Hindi.`
     : `LANGUAGE: Generate ALL text in English.`;
 
-  // Mode context
   const modeMap = {
-    interview: `Interview Practice. Type: ${interviewType || "behavioral"}. Role: ${jobRole || "general"}. Experience: ${experienceLevel || "any"}.
-Prioritize: Structure > Relevance > Confidence.`,
+    interview: `Interview Practice. Type: ${interviewType || "behavioral"}. Role: ${jobRole || "general"}. Experience: ${experienceLevel || "any"}.\nPrioritize: Structure > Relevance > Confidence.`,
     presentation: `Presentation Practice. Prioritize: Confidence > Clarity > Pacing.`,
     casual: `Casual Speaking. Prioritize: Fluency > Natural Flow > Ease.`,
   };
   const modeContext = modeMap[mode] || modeMap.interview;
 
-  // Retry comparison
   let retryBlock = "";
   if (parentSession) {
     retryBlock = `
