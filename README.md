@@ -1,23 +1,32 @@
 <div align="center">
 
-# 🎙️ Orato AI
-
-### Real-time AI-powered communication coach that analyzes spoken responses and provides structured feedback to improve clarity, confidence, and delivery.
+# 🎙 Orato AI
 
 <p align="center">
-  <a href="https://oratoai.base44.app">
+  Real-time AI-powered communication coach that analyzes spoken responses and delivers structured, actionable feedback.
+</p>
+
+<p align="center">
+  <b>Voice Analysis • AI Feedback • Interview Coaching • Production-Ready</b>
+</p>
+
+<p align="center">
+  <a href="https://your-live-url.com">
     <img src="https://img.shields.io/badge/Live-Demo-00C853?style=for-the-badge&logo=vercel&logoColor=white" />
   </a>
 </p>
 
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Google Gemini](https://img.shields.io/badge/Google-Gemini_API-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg)](./LICENSE)
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18-blue" />
+  <img src="https://img.shields.io/badge/Vite-6-purple" />
+  <img src="https://img.shields.io/badge/Node.js-Express-green" />
+  <img src="https://img.shields.io/badge/Gemini-API-orange" />
+  <img src="https://img.shields.io/badge/License-MIT-lightgrey" />
+</p>
 
-</div>
+<p align="center">
+  ⭐ If you like this project, consider giving it a star!
+</p>
 
 ---
 
@@ -80,10 +89,10 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 | <img src="./screenshots/homes.png" alt="Home screen showing practice mode selection" width="260"/> | <img src="./screenshots/practice.png" alt="Voice recording interface with live waveform" width="260"/> | <img src="./screenshots/feedback.png" alt="Structured AI feedback with scores and coaching tips" width="260"/> |
 | Choose from Interview, Presentation, or Casual Speaking modes | Record your response with live audio waveform visualization | Receive structured scores, strengths, improvements, and a sample answer |
 
-🔗 Live Application: https://oratoai.base44.app
+### 🔗 Live Application  
+👉 https://oratoai.base44.app  
 
 Experience the full AI-powered speaking coach in real-time.
-</div>
 
 ---
 
