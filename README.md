@@ -27,21 +27,41 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 
 ---
 
-## Table of Contents
+---
 
-1. [Demo](#demo)
-2. [Features](#features)
-3. [Architecture](#architecture)
-4. [Tech Stack](#tech-stack)
-5. [How It Works](#how-it-works)
-6. [Project Structure](#project-structure)
-7. [Setup Instructions](#setup-instructions)
-8. [Environment Variables](#environment-variables)
-9. [Performance & Optimization](#performance--optimization)
-10. [API Reference](#api-reference)
-11. [Future Improvements](#future-improvements)
-12. [Contributing](#contributing)
-13. [License](#license)
+## 🔎 Quick Navigation
+
+<div align="center">
+
+[🚀 Overview](#-overview) •
+[🎥 Demo](#-demo) •
+[✨ Features](#-features) •
+[🏗 Architecture](#-architecture) •
+[⚙️ Tech Stack](#️-tech-stack)
+
+<br/>
+
+[🔄 How It Works](#-how-it-works) •
+[📂 Project Structure](#-project-structure) •
+[🛠 Setup](#️-setup-instructions) •
+[🔐 Environment](#-environment-variables)
+
+<br/>
+
+[⚡ Performance](#-performance--optimization) •
+[📡 API](#-api-reference) •
+[🚧 Future Plans](#-future-improvements)
+
+<br/>
+
+[🤝 Contributing](#-contributing) •
+[📄 License](#-license)
+
+</div>
+
+<p align="center">
+  <b>AI-Powered Communication Coach • Real-Time Feedback • Production-Ready Architecture</b>
+</p>
 
 ---
 
