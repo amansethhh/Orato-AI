@@ -1,0 +1,92 @@
+{
+  "name": "PracticeSession",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "interview",
+        "presentation",
+        "casual"
+      ],
+      "description": "Practice mode type"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "The prompt/question given to user"
+    },
+    "transcript": {
+      "type": "string",
+      "description": "Transcribed user speech"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "URL to recorded audio file"
+    },
+    "feedback": {
+      "type": "object",
+      "properties": {
+        "did_well": {
+          "type": "string"
+        },
+        "improve": {
+          "type": "string"
+        },
+        "tip": {
+          "type": "string"
+        },
+        "full_feedback": {
+          "type": "string"
+        },
+        "rephrased_version": {
+          "type": "string"
+        }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "properties": {
+        "clarity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "structure": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      }
+    },
+    "filler_word_count": {
+      "type": "number",
+      "description": "Number of filler words detected"
+    },
+    "retry_focus": {
+      "type": "string",
+      "description": "What the user should focus on for retry"
+    },
+    "parent_session_id": {
+      "type": "string",
+      "description": "ID of previous session if this is a retry"
+    }
+  },
+  "required": [
+    "mode",
+    "prompt"
+  ]
+}
