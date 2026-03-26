@@ -4,6 +4,12 @@
 
 ### Real-time AI-powered communication coach that analyzes spoken responses and provides structured feedback to improve clarity, confidence, and delivery.
 
+<p align="center">
+  <a href="https://oratoai.base44.app">
+    <img src="https://img.shields.io/badge/Live-Demo-00C853?style=for-the-badge&logo=vercel&logoColor=white" />
+  </a>
+</p>
+
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -74,6 +80,9 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 | <img src="./screenshots/homes.png" alt="Home screen showing practice mode selection" width="260"/> | <img src="./screenshots/practice.png" alt="Voice recording interface with live waveform" width="260"/> | <img src="./screenshots/feedback.png" alt="Structured AI feedback with scores and coaching tips" width="260"/> |
 | Choose from Interview, Presentation, or Casual Speaking modes | Record your response with live audio waveform visualization | Receive structured scores, strengths, improvements, and a sample answer |
 
+🔗 Live Application: https://oratoai.base44.app
+
+Experience the full AI-powered speaking coach in real-time.
 </div>
 
 ---
