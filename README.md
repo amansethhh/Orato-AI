@@ -51,7 +51,7 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 
 | Home / Mode Selection | Voice Practice Session | AI Feedback Results |
 |:---:|:---:|:---:|
-| <img src="./screenshots/home.png" alt="Home screen showing practice mode selection" width="260"/> | <img src="./screenshots/practice.png" alt="Voice recording interface with live waveform" width="260"/> | <img src="./screenshots/feedback.png" alt="Structured AI feedback with scores and coaching tips" width="260"/> |
+| <img src="./screenshots/homes.png" alt="Home screen showing practice mode selection" width="260"/> | <img src="./screenshots/practice.png" alt="Voice recording interface with live waveform" width="260"/> | <img src="./screenshots/feedback.png" alt="Structured AI feedback with scores and coaching tips" width="260"/> |
 | Choose from Interview, Presentation, or Casual Speaking modes | Record your response with live audio waveform visualization | Receive structured scores, strengths, improvements, and a sample answer |
 
 </div>
