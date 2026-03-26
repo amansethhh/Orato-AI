@@ -242,17 +242,46 @@ function validateFeedback(data) {
 }
 
 function getFallbackFeedback(transcript = "") {
-  const wordCount = transcript.split(/\s+/).filter(Boolean).length;
+  const words = transcript.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const firstPhrase = sentences[0]?.trim() || "your response";
+  const secondPhrase = sentences[1]?.trim() || "";
+  const hedges = transcript.match(/\b(I think|maybe|I guess|sort of|kind of|not sure)\b/gi) || [];
+  const strongPhrases = transcript.match(/\b(I led|I managed|I built|I created|I improved|I achieved)\b/gi) || [];
+
+  // Build STAR sampleAnswer from transcript
+  const coreMessage = sentences.slice(0, 2).join(". ").replace(/\b(um|uh|like|you know|basically)\b/gi, "").replace(/\s+/g, " ").trim();
+  const sampleAnswer = wordCount >= 5
+    ? `In my previous role, I encountered a situation where ${coreMessage.toLowerCase().replace(/^i /, "I ")}. I took the initiative to address this by developing a structured approach. As a result, I was able to deliver meaningful outcomes and gained valuable experience.`
+    : "In my experience, I've learned that preparation and clear communication are key. I approach each challenge by first understanding the context, then developing a plan to address it. This systematic approach has consistently helped me deliver strong results.";
+
+  const strengths = [];
+  if (strongPhrases.length > 0) {
+    strengths.push(`Using "${strongPhrases[0]}" demonstrates ownership — this signals leadership`);
+  } else if (firstPhrase.length > 10) {
+    strengths.push(`Opening with "${firstPhrase.slice(0, 60)}" establishes context for the listener`);
+  } else {
+    strengths.push("You engaged with the question directly — this shows confidence");
+  }
+
+  const improvements = [];
+  if (hedges.length > 0) {
+    improvements.push(`Replace "${hedges[0]}" with a direct statement — hedging weakens your message`);
+  } else {
+    improvements.push("Add a specific metric or result — quantifiable outcomes are 3x more memorable");
+  }
+
   return {
-    feedback: "Your response was received. Keep practicing to improve your delivery.",
+    feedback: `You opened with "${firstPhrase.slice(0, 80)}" which ${sentences.length >= 2 ? "set context" : "could use a stronger opening"}. ${wordCount > 20 ? "You provided good substance." : "Try expanding with one specific example."}`,
     clarity: 55,
     confidence: 50,
     structure: 50,
     fluency: 55,
-    strengths: ["You provided a response — that's the first step."],
-    improvements: ["Try adding more specific details next time."],
-    tip: "Before speaking, take a breath and outline your main points mentally.",
-    sampleAnswer: "",
+    strengths,
+    improvements,
+    tip: "Before speaking, take one breath and mentally note: Situation, Action, Result.",
+    sampleAnswer,
     filler_word_count: Math.max(0, Math.floor(wordCount * 0.1)),
     _isFallback: true,
   };
@@ -477,9 +506,32 @@ app.use((_req, res) => {
 
 app.listen(config.port, () => {
   const provider = getProvider();
-  log("info", `Orato AI server running on port ${config.port}`);
-  log("info", `AI Provider: ${provider}`);
+
+  console.log("\n╔══════════════════════════════════════════════════════╗");
+  console.log("║           🎙️  Orato AI — Backend Server              ║");
+  console.log("╚══════════════════════════════════════════════════════╝\n");
+
+  log("info", `Server running on http://localhost:${config.port}`);
+  log("info", `AI Provider: ${provider.toUpperCase()}`);
   log("info", `Frontend URL: ${config.frontendUrl}`);
   log("info", `Rate limit: ${config.rateLimit.maxRequests} req/${config.rateLimit.windowMs / 1000}s`);
   log("info", `Cache TTL: ${config.cache.ttl / 1000}s, max size: ${config.cache.maxSize}`);
+
+  // API key detection
+  const hasOpenAI = config.openaiKey.length > 10;
+  const hasGemini = config.geminiKey.length > 10;
+  log("info", `OpenAI API Key: ${hasOpenAI ? "✅ Detected" : "❌ Not set"}`);
+  log("info", `Gemini API Key: ${hasGemini ? "✅ Detected" : "❌ Not set"}`);
+
+  if (provider === "mock") {
+    console.log("");
+    log("warn", "⚠️  No valid API keys found — running in MOCK MODE");
+    log("warn", "   Set OPENAI_API_KEY or GEMINI_API_KEY in server/.env for real AI");
+  }
+
+  console.log("\n  Endpoints:");
+  console.log("    GET  /api/health       — Health check");
+  console.log("    POST /api/ai           — AI feedback analysis");
+  console.log("    POST /api/ai/question  — Question generation\n");
 });
+

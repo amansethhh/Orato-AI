@@ -10,6 +10,7 @@
  */
 
 import logger from "@/lib/logger.js";
+import { checkBackendHealth } from "@/lib/healthCheck.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -168,38 +169,84 @@ function validateFeedback(obj) {
     strengths:     Array.isArray(obj.strengths) ? obj.strengths.filter(s => typeof s === "string" && s.length > 3).slice(0, 5) : ["Good attempt"],
     improvements:  Array.isArray(obj.improvements) ? obj.improvements.filter(s => typeof s === "string" && s.length > 3).slice(0, 5) : ["Continue practicing"],
     tip:           typeof obj.tip === "string" && obj.tip.length > 3 ? obj.tip : "Try again with more detail.",
-    sampleAnswer:  typeof obj.sampleAnswer === "string" ? obj.sampleAnswer : "",
+    sampleAnswer:  typeof obj.sampleAnswer === "string" && obj.sampleAnswer.length > 5 ? obj.sampleAnswer : "In my experience, I approached this by first understanding the situation, then taking action to address it directly, which led to a successful outcome.",
+    filler_word_count: typeof obj.filler_word_count === "number" ? obj.filler_word_count : 0,
   };
 }
-
-// ── Mock Fallback (transcript-aware) ─────────────────────────────────────────
 
 function getMockFeedback(transcript) {
   const base = computeBaseScores(transcript);
   const fillers = countFillers(transcript);
-  const words = (transcript || "").split(/\s+/).length;
-  const firstPhrase = (transcript || "").split(/[,.!?]/)[0]?.trim() || "your response";
+  const text = (transcript || "").trim();
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const firstPhrase = sentences[0]?.trim() || "your response";
+  const secondPhrase = sentences[1]?.trim() || "";
+  const lastPhrase = sentences[sentences.length - 1]?.trim() || "";
+
+  // Extract key phrases for quoting
+  const hedges = text.match(/\b(I think|maybe|I guess|sort of|kind of|not sure)\b/gi) || [];
+  const strongPhrases = text.match(/\b(I led|I managed|I built|I created|I improved|I achieved|we delivered|I'm confident|I believe)\b/gi) || [];
+
+  // Build STAR sampleAnswer from transcript
+  const coreMessage = sentences.slice(0, 2).join(". ").replace(/\b(um|uh|like|you know|basically)\b/gi, "").replace(/\s+/g, " ").trim();
+  const sampleAnswer = wordCount >= 5
+    ? `In my previous role, I encountered a situation where ${coreMessage.toLowerCase().replace(/^i /, "I ")}. I took the initiative to address this by developing a structured approach, which involved ${secondPhrase ? secondPhrase.toLowerCase() : "careful planning and execution"}. As a result, ${lastPhrase ? lastPhrase : "I was able to deliver meaningful outcomes and gained valuable experience"}.`
+    : "In my experience, I've learned that preparation and clear communication are key. I approach each challenge by first understanding the context, then developing a plan to address it. This systematic approach has consistently helped me deliver strong results.";
+
+  // Transcript-anchored strengths (quote exact phrases)
+  const strengths = [];
+  if (strongPhrases.length > 0) {
+    strengths.push(`Using "${strongPhrases[0]}" demonstrates ownership and accountability — this signals leadership to the listener`);
+  } else if (firstPhrase.length > 10) {
+    strengths.push(`Opening with "${firstPhrase.slice(0, 60)}" immediately establishes context for the listener`);
+  } else {
+    strengths.push("You engaged with the question directly rather than deflecting — this shows confidence");
+  }
+
+  if (wordCount >= 25) {
+    strengths.push(`Providing ${wordCount} words gives the listener enough substance to evaluate your thinking process`);
+  }
+  if (sentences.length >= 3) {
+    strengths.push("Your response had multiple points, showing you can develop an idea rather than giving a one-line answer");
+  } else {
+    strengths.push("Your concise approach keeps the listener engaged — build on this by adding one specific example");
+  }
+
+  // Anti-generic improvements (WHY + HOW)
+  const improvements = [];
+  if (hedges.length > 0) {
+    improvements.push(`Replace "${hedges[0]}" with a direct statement — hedging language weakens your message because it signals uncertainty to the listener. Try: "I'm confident that..." or simply state the fact`);
+  } else if (fillers > 1) {
+    improvements.push(`You used ${fillers} filler words — fillers erode listener confidence because they suggest you're unsure. Practice pausing silently for 1 second instead of saying "um"`);
+  } else {
+    improvements.push("Add a specific metric or result to your answer — quantifiable outcomes make your response 3x more memorable. Instead of 'it went well,' try 'we increased efficiency by 20%'");
+  }
+
+  if (base.structure < 60) {
+    improvements.push("Structure your answer using STAR: Situation → Task → Action → Result. This matters because interviewers mentally score structured answers higher, even with the same content");
+  } else {
+    improvements.push("End with the impact of your actions — the 'Result' part is what interviewers remember most. Try closing with 'As a result, we achieved...'");
+  }
+
+  const tip = fillers > 2
+    ? `Before your next attempt, record yourself saying just the first sentence 3 times — each time, remove one filler word. You used ${fillers} fillers; aim for ${Math.max(0, fillers - 2)} or fewer.`
+    : wordCount < 20
+    ? "Before answering, take one breath and mentally note: Situation, Action, Result. Then speak. This 3-second pause will make your answer 50% more structured."
+    : "On your next attempt, try starting with 'In [specific situation]...' instead of a general statement — concrete openings immediately capture attention.";
 
   return {
-    feedback: `You opened with "${firstPhrase}" which immediately ${base.structure >= 60 ? "set clear context" : "could use a stronger opening"}. ${fillers > 2 ? `I noticed ${fillers} filler words — replacing those with brief pauses will boost your confidence.` : "Your delivery was fairly smooth."} ${words > 30 ? "You provided enough detail for a solid answer." : "Try expanding with a specific example next time."}`,
+    feedback: `You opened with "${firstPhrase.slice(0, 80)}" which ${base.structure >= 60 ? "immediately set clear context for the listener" : "could be strengthened with a more specific opening — try starting with a concrete situation"}. ${fillers > 2 ? `I counted ${fillers} filler words (${hedges.length > 0 ? `including "${hedges[0]}"` : "like 'um' and 'uh'"}) — replacing these with brief pauses will significantly boost your perceived confidence.` : "Your delivery was fairly smooth with minimal filler words."} ${wordCount > 30 ? `At ${wordCount} words, you provided enough detail for a thorough evaluation.` : "Try expanding your answer with one specific, concrete example to strengthen your response."}`,
     clarity: base.clarity,
     confidence: base.confidence,
     structure: base.structure,
     fluency: base.fluency,
-    strengths: [
-      `Opening with "${firstPhrase}" ${base.clarity >= 60 ? "clearly established your point" : "showed your intent"}`,
-      words >= 20 ? "Provided enough substance for evaluation" : "Kept your answer concise",
-      base.confidence >= 60 ? "Delivered with reasonable poise" : "Showed willingness to practice",
-    ],
-    improvements: [
-      fillers > 1 ? `Reduce filler words (counted ${fillers}) — try pausing silently instead` : "Consider adding a brief pause before answering to gather thoughts",
-      base.structure < 60 ? "Structure: try the pattern — context → action → result" : "Add one quantifiable result to strengthen your example",
-      base.confidence < 55 ? "Drop hedging phrases like 'I think' or 'maybe' — state directly" : "Vary your vocal tone to emphasize key points",
-    ],
-    tip: fillers > 2
-      ? `Record your next attempt and count filler words. You used ${fillers} — aim for ${Math.max(0, fillers - 2)} or fewer.`
-      : "Before answering, take one breath and mentally note your opening word.",
-    sampleAnswer: "",
+    strengths,
+    improvements,
+    tip,
+    sampleAnswer,
+    filler_word_count: fillers,
   };
 }
 
@@ -316,13 +363,27 @@ export function getProvider() {
  */
 export async function invokeLLM(prompt, transcript = "", skipCache = false) {
   const provider = getProvider();
-  logger.info("AI provider", provider);
+  logger.info("AI provider:", provider);
 
   // Mock mode — no backend needed
   if (provider === "mock") {
+    logger.info("[Debug] Transcript:", transcript?.slice(0, 100) || "(empty)");
     const mock = getMockFeedback(transcript);
+    logger.info("[Debug] Mock response:", { feedback: mock.feedback?.slice(0, 80), scores: { c: mock.clarity, s: mock.structure } });
     return { data: mock, provider: "mock", isMock: true };
   }
+
+  // Check if backend is reachable before trying
+  const health = await checkBackendHealth();
+  if (!health.ok) {
+    logger.warn("Backend unreachable — using local mock fallback");
+    logger.info("[Debug] Transcript:", transcript?.slice(0, 100) || "(empty)");
+    const mock = getMockFeedback(transcript);
+    logger.info("[Debug] Fallback mock response generated");
+    return { data: mock, provider: "mock-fallback", isMock: true };
+  }
+
+  logger.info(`Calling backend at ${API_BASE || "(dev proxy)"}/api/ai`);
 
   // Client-side cache check
   const cacheKey = hashStr(prompt);
@@ -349,7 +410,9 @@ export async function invokeLLM(prompt, transcript = "", skipCache = false) {
     const validated = validateFeedback(raw);
     if (validated) {
       setCache(cacheKey, validated);
-      logger.info("Validated feedback from backend");
+      logger.info("[Debug] AI response type:", raw._isMock ? "MOCK" : "REAL AI", "| Provider:", raw._provider || "backend");
+      logger.info("[Debug] Transcript:", transcript?.slice(0, 100));
+      logger.info("[Debug] Scores: C", validated.clarity, "S", validated.structure, "Conf", validated.confidence, "F", validated.fluency);
       return { data: validated, provider: raw._provider || "backend", isMock: !!raw._isMock };
     }
 
@@ -442,6 +505,9 @@ export function buildCoachingPrompt({
   const sentenceCount = (transcript || "").split(/[.!?]+/).filter(s => s.trim()).length;
   const baseScores = computeBaseScores(transcript);
   const firstPhrase = (transcript || "").split(/[,.!?]/)[0]?.trim() || "";
+  const sentences = (transcript || "").split(/[.!?]+/).filter(s => s.trim()).slice(0, 5);
+  const hedges = (transcript || "").match(/\b(I think|maybe|I guess|sort of|kind of|not sure)\b/gi) || [];
+  const strongPhrases = (transcript || "").match(/\b(I led|I managed|I built|I created|I improved|I achieved|we delivered|I'm confident|I believe)\b/gi) || [];
 
   const styleMap = {
     encouraging: "Tone: Warm, supportive, motivating. Start with genuine positives. Frame improvements as growth opportunities.",
@@ -459,7 +525,7 @@ export function buildCoachingPrompt({
   const focusInstructions = focusMap[coachingFocus] || "BALANCED FOCUS: Evaluate all dimensions equally.";
 
   const langBlock = language === "hindi"
-    ? `LANGUAGE: Generate ALL text in Hindi. Only technical nouns may be English. Every field must be Hindi.`
+    ? `LANGUAGE: Generate ALL text in Hindi. Only technical nouns may be English.`
     : `LANGUAGE: Generate ALL text in English.`;
 
   const modeMap = {
@@ -479,6 +545,14 @@ Focus area: ${retryFocus || "general improvement"}
 IMPORTANT: Acknowledge ANY improvement, even subtle. Make the user feel their effort paid off.`;
   }
 
+  // Phrases to help AI anchor on transcript
+  const phraseAnchors = sentences.length > 0
+    ? `KEY PHRASES FROM TRANSCRIPT (use these in your feedback):
+${sentences.map((s, i) => `  ${i + 1}. "${s.trim().slice(0, 100)}"`).join("\n")}
+${hedges.length > 0 ? `  HEDGING DETECTED: ${hedges.map(h => `"${h}"`).join(", ")}` : "  NO HEDGING DETECTED"}
+${strongPhrases.length > 0 ? `  STRONG PHRASES: ${strongPhrases.map(p => `"${p}"`).join(", ")}` : ""}`
+    : "";
+
   return `${langBlock}
 
 ${styleInstructions}
@@ -492,12 +566,14 @@ QUESTION: "${currentPrompt}"
 USER'S SPOKEN RESPONSE (transcript):
 "${transcript}"
 
-TRANSCRIPT ANALYSIS (pre-computed — use these as anchoring data):
+TRANSCRIPT ANALYSIS (pre-computed — use as anchoring data):
 - Word count: ${wordCount}
 - Sentence count: ${sentenceCount}
 - Filler word count: ${fillerCount}
 - Opening phrase: "${firstPhrase}"
 - Base score hints: clarity ~${baseScores.clarity}, confidence ~${baseScores.confidence}, structure ~${baseScores.structure}, fluency ~${baseScores.fluency}
+
+${phraseAnchors}
 
 ${retryBlock}
 
@@ -509,14 +585,62 @@ SCORING RULES:
 - Never score below 20 — always find at least one strength
 - If retry, adjust scores up for any improvement
 
-FEEDBACK RULES:
-- "feedback": 2-3 sentences. MUST quote at least one phrase from their transcript.
-- "strengths": 1-3 items. Each MUST reference something specific they said.
-- "improvements": 1-3 items. Give concrete alternatives (e.g., "Instead of 'I think maybe...' try 'I believe...'")
-- "tip": ONE immediately actionable step they can do on the next attempt
-- "sampleAnswer": A better version preserving their core message and style
+═══════════════════════════════════════════════════
+STRICT QUALITY RULES (CRITICAL — FOLLOW EXACTLY)
+═══════════════════════════════════════════════════
 
-Respond with a single valid JSON object. No markdown, no fences, just JSON.`;
+RULE 1 — TRANSCRIPT ANCHORING (MANDATORY):
+- You MUST reference EXACT phrases from the user's transcript
+- "feedback" field MUST quote at least one phrase using quotation marks
+- Each item in "strengths" MUST quote a specific phrase the user said
+- Each item in "improvements" MUST reference an exact word/phrase that needs fixing
+- VIOLATION: Any strength/improvement that doesn't quote the transcript is INVALID
+
+RULE 2 — ANTI-GENERIC (STRICTLY BANNED):
+These phrases are FORBIDDEN. Never use them:
+❌ "Good job" | "Keep it up" | "Nice work" | "Could improve" | "Try to be better"
+❌ "Good clarity" | "Good structure" | "Keep practicing" | "Needs improvement"
+❌ Any feedback that could apply to ANY response without reading the transcript
+
+RULE 3 — WHY + HOW (EVERY IMPROVEMENT):
+Every improvement must include:
+1. WHAT: Quote the exact problematic phrase
+2. WHY: Explain why it weakens the response
+3. HOW: Give a concrete alternative phrase they should say instead
+Example: "Replace 'I think maybe...' with 'I'm confident that...' — hedging language signals uncertainty to interviewers and reduces your perceived expertise"
+
+RULE 4 — SAMPLE ANSWER (STAR METHOD):
+"sampleAnswer" MUST:
+- Be 3-5 sentences long
+- Follow STAR structure: Situation → Task → Action → Result
+- Preserve the user's original intent and core message
+- Improve clarity, remove fillers, add specific results
+- Sound natural — not robotic or template-like
+- Start with a concrete situation, end with measurable impact
+
+═══════════════════════════════════════════════════
+
+RESPONSE FORMAT — Return a single valid JSON object. No markdown fences.
+{
+  "feedback": "2-3 sentences. MUST quote user's phrases. Specific to THIS transcript.",
+  "clarity": number (0-100),
+  "confidence": number (0-100),
+  "structure": number (0-100),
+  "fluency": number (0-100),
+  "strengths": ["1-3 items. Each MUST quote a phrase from transcript. Explain WHY it's effective."],
+  "improvements": ["1-3 items. Each MUST quote a phrase, explain WHY it's weak, and give a concrete HOW."],
+  "tip": "ONE immediately actionable step for the next attempt.",
+  "sampleAnswer": "3-5 sentence STAR-structured rewrite of their response.",
+  "filler_word_count": number
+}
+
+VALIDATION CHECKLIST (verify before responding):
+□ Does "feedback" quote at least one phrase from the transcript?
+□ Does every "strengths" item reference specific words the user said?
+□ Does every "improvements" item include WHAT + WHY + HOW?
+□ Is "sampleAnswer" 3-5 sentences using STAR format?
+□ Are scores within ±15 of the base score hints?
+□ Is every phrase banned by RULE 2 absent from the response?`;
 }
 
 // ── Exported Utilities ───────────────────────────────────────────────────────

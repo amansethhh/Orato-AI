@@ -196,15 +196,15 @@ const Core = {
 
     return {
       ...data,
-      transcript: data.sampleAnswer || "",
+      transcript: data.sampleAnswer || "In my experience, I approach each challenge by first understanding the context, then developing a plan to address it, which consistently leads to strong results.",
       scoring: levels,
-      filler_word_count: data.filler_word_count || Math.floor(Math.random() * 4) + 1,
-      did_well: (data.strengths || [])[0] || "Good effort.",
-      improve: (data.improvements || [])[0] || "Continue practicing.",
-      tip: data.tip || "Try again with more detail.",
-      full_feedback: data.feedback || "Response processed successfully.",
-      reasoning: `Based on scores — Clarity: ${data.clarity}, Confidence: ${data.confidence}, Structure: ${data.structure}.`,
-      rephrased_version: data.sampleAnswer || "",
+      filler_word_count: data.filler_word_count || 0,
+      did_well: (data.strengths || ["Good effort"]).join(" • "),
+      improve: (data.improvements || ["Continue practicing"]).join(" • "),
+      tip: data.tip || "Try again with more specific details and a concrete example.",
+      full_feedback: data.feedback || "Response analyzed. Keep practicing to improve your delivery.",
+      reasoning: `Clarity ${data.clarity}/100 — ${data.clarity >= 70 ? "well-articulated ideas" : data.clarity >= 40 ? "room to sharpen expression" : "focus on clearer delivery"}. Confidence ${data.confidence}/100 — ${data.confidence >= 70 ? "strong presence" : data.confidence >= 40 ? "moderate certainty" : "build assertiveness"}. Structure ${data.structure}/100 — ${data.structure >= 70 ? "logical flow" : data.structure >= 40 ? "could use STAR method" : "needs clear beginning-middle-end"}.`,
+      rephrased_version: data.sampleAnswer || "In my previous role, I encountered a similar challenge. I took the initiative to develop a structured approach, carefully analyzing the situation and taking decisive action. As a result, I was able to achieve a positive outcome and gained valuable experience.",
       retry_focus:
         data.structure < data.clarity && data.structure < data.confidence
           ? "structure"
@@ -215,9 +215,9 @@ const Core = {
       score: Math.round(
         ((data.clarity || 50) + (data.confidence || 50) + (data.structure || 50) + (data.fluency || 50)) / 4
       ),
-      strengths: data.strengths || ["Good attempt"],
-      areas_for_improvement: data.improvements || ["Continue practicing"],
-      suggestions: data.improvements || ["Continue practicing"],
+      strengths: data.strengths || ["Good attempt — you engaged with the question directly"],
+      areas_for_improvement: data.improvements || ["Add more specific details to strengthen your response"],
+      suggestions: data.improvements || ["Add more specific details to strengthen your response"],
       _isMock: isMock,
     };
   },
