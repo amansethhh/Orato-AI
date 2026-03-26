@@ -247,6 +247,8 @@ A step-by-step plan to replace every mocked capability with a real, local-first 
 
 ```js
 // src/pages/VoicePractice.jsx — replace decorative waveform
+const audioContext = new AudioContext();
+const source = audioContext.createMediaStreamSource(stream);
 const analyser = audioContext.createAnalyser();
 source.connect(analyser);
 // Read analyser.getByteTimeDomainData(dataArray) on each animation frame
@@ -481,7 +483,7 @@ Orato-AI/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/amansethhh/Orato-AI.git
+git clone https://github.com/your-username/Orato-AI.git
 cd Orato-AI
 
 # 2. Install dependencies
@@ -495,7 +497,7 @@ cp .env.example .env.local   # create this file if it doesn't exist
 npm run dev
 ```
 
-The app will be available at **http://localhost:5173**.
+The app will be available at **[http://localhost:5173](http://localhost:5173)**.
 
 ### Other Scripts
 
@@ -508,7 +510,7 @@ npm run lint:fix   # ESLint auto-fix
 
 ### First Run
 
-1. Open http://localhost:5173
+1. Open [http://localhost:5173](http://localhost:5173)
 2. The **Intro** page loads automatically (first-time only)
 3. Click **Continue with Orato AI** — the `orato_has_seen_intro` flag is set
 4. Select a practice mode on the **Home** page
