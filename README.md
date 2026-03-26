@@ -121,7 +121,8 @@ Experience the full AI-powered speaking coach in real-time.
 ┌─────────────────────────────────────────────────────────────────┐
 │                         FRONTEND (React + Vite)                 │
 │                                                                 │
-│   [Home] → [Setup] → [VoicePractice] → [AIFeedback]            │
+│  [Intro] → [Home] → [InterviewSetup / QuestionSetup]           │
+│                            → [VoicePractice] → [AIFeedback]    │
 │       MediaRecorder API       Web Speech API (STT)              │
 │       SpeechSynthesis API (TTS)    Recharts (analytics)         │
 └──────────────────────────┬──────────────────────────────────────┘
@@ -230,12 +231,22 @@ Orato-AI/
 ├── index.html
 ├── vite.config.js
 ├── tailwind.config.js
+├── postcss.config.js
+├── eslint.config.js
+├── jsconfig.json
+├── components.json
 ├── package.json
+│
+├── entities/
+│   └── PracticeSession        # Session data entity
 │
 ├── src/
 │   ├── main.jsx               # App entry point
 │   ├── App.jsx                # Route definitions
 │   ├── Layout.jsx             # Shell layout
+│   ├── index.css              # Global base styles
+│   ├── globals.css            # Global CSS variables / resets
+│   ├── pages.config.js        # Page route configuration
 │   │
 │   ├── pages/
 │   │   ├── Home.jsx           # Mode selection dashboard
@@ -250,11 +261,18 @@ Orato-AI/
 │   │   ├── ScoreIndicator.jsx # Animated score ring
 │   │   ├── SessionSummary.jsx # Per-session summary card
 │   │   ├── ProgressSnapshot.jsx
+│   │   ├── ExpandableQuestion.jsx
+│   │   ├── ModeCard.jsx
+│   │   ├── LoginPrompt.jsx
+│   │   ├── UserNotRegisteredError.jsx
 │   │   ├── SettingsModal.jsx
 │   │   ├── SettingsProvider.jsx
 │   │   ├── ErrorBoundary.jsx
 │   │   ├── translations.jsx   # EN / HI strings
 │   │   └── ui/                # Radix UI + shadcn components
+│   │
+│   ├── hooks/
+│   │   └── use-mobile.jsx     # Mobile viewport detection hook
 │   │
 │   ├── api/
 │   │   ├── apiClient.js       # Fetch wrapper (frontend → backend)
@@ -263,6 +281,11 @@ Orato-AI/
 │   │
 │   ├── lib/
 │   │   ├── AuthContext.jsx
+│   │   ├── NavigationTracker.jsx
+│   │   ├── PageNotFound.jsx
+│   │   ├── VisualEditAgent.jsx
+│   │   ├── app-params.js
+│   │   ├── query-client.js
 │   │   ├── logger.js
 │   │   ├── healthCheck.js
 │   │   └── utils.js
