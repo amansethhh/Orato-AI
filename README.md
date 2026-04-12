@@ -106,53 +106,53 @@ Experience the full AI-powered speaking coach in real-time.
 ## 🏗 Architecture
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                  FRONTEND (React + Vite)                   │
-│                                                            │
-│  [Home] → [Setup] → [VoicePractice] → [AIFeedback]        │
-│  MediaRecorder API          Web Speech API (STT)           │
-│  SpeechSynthesis API (TTS)  Recharts (analytics)           │
-└─────────────────────────────┬──────────────────────────────┘
-                              │
++------------------------------------------------------------+
+|                  FRONTEND (React + Vite)                    |
+|                                                            |
+|  [Home] -> [Setup] -> [VoicePractice] -> [AIFeedback]      |
+|  MediaRecorder API          Web Speech API (STT)           |
+|  SpeechSynthesis API (TTS)  Recharts (analytics)           |
++-----------------------------+------------------------------+
+                              |
                    POST /api/ai (transcript + prompt)
-                              │
-                              ▼
-┌────────────────────────────────────────────────────────────┐
-│                BACKEND (Node.js + Express)                 │
-│                                                            │
-│  Rate Limiter → Request Validator → Cache Lookup           │
-│                         │                                  │
-│             ┌───────────┴───────────┐                      │
-│             ▼                       ▼                      │
-│      Google Gemini API        OpenAI API                   │
-│             └───────────┬───────────┘                      │
-│                         ▼                                  │
-│  Response Validator → Cache Store → JSON Response          │
-└─────────────────────────────┬──────────────────────────────┘
-                              │
+                              |
+                              v
++------------------------------------------------------------+
+|                BACKEND (Node.js + Express)                  |
+|                                                            |
+|  Rate Limiter -> Request Validator -> Cache Lookup          |
+|                         |                                  |
+|             +-----------+-----------+                      |
+|             v                       v                      |
+|      Google Gemini API        OpenAI API                   |
+|             +-----------+-----------+                      |
+|                         v                                  |
+|  Response Validator -> Cache Store -> JSON Response         |
++-----------------------------+------------------------------+
+                              |
                    Structured feedback JSON
-                              │
-                              ▼
-                     ┌────────────────┐
-                     │   React UI     │
-                     │   Score cards  │
-                     │   Coaching     │
-                     │   insights     │
-                     └────────────────┘
+                              |
+                              v
+                     +----------------+
+                     |   React UI     |
+                     |   Score cards  |
+                     |   Coaching     |
+                     |   insights     |
+                     +----------------+
 ```
 
 ### 🔁 Request Flow
 
 ```
-User speaks → MediaRecorder captures audio
-            → Web Speech API transcribes to text
-            → Frontend sends transcript + prompt to backend
-            → Backend checks cache (dedup + prompt cache)
-            → Backend calls Gemini / OpenAI with schema prompt
-            → Response validated, clamped, cached
-            → Structured JSON returned to frontend
-            → UI renders scores, strengths, improvements, sample answer
-            → SpeechSynthesis reads feedback aloud (optional)
+User speaks -> MediaRecorder captures audio
+           -> Web Speech API transcribes to text
+           -> Frontend sends transcript + prompt to backend
+           -> Backend checks cache (dedup + prompt cache)
+           -> Backend calls Gemini / OpenAI with schema prompt
+           -> Response validated, clamped, cached
+           -> Structured JSON returned to frontend
+           -> UI renders scores, strengths, improvements, sample answer
+           -> SpeechSynthesis reads feedback aloud (optional)
 ```
 
 ---
@@ -194,23 +194,23 @@ User speaks → MediaRecorder captures audio
 
 ```
  1. User selects a practice mode (Interview / Presentation / Casual)
-        ↓
+        |
  2. AI generates an adaptive question based on role and difficulty
-        ↓
+        |
  3. User records their spoken response via the microphone
-        ↓
+        |
  4. Web Speech API transcribes the audio to text in real time
-        ↓
+        |
  5. Transcript and coaching prompt are sent to the backend proxy
-        ↓
+        |
  6. Backend checks the in-memory cache; on a miss, calls Gemini or OpenAI
-        ↓
+        |
  7. AI returns structured JSON: scores, strengths, improvements, tip, sample answer
-        ↓
+        |
  8. Frontend renders animated score cards, coaching insights, and a model answer
-        ↓
+        |
  9. SpeechSynthesis reads the feedback aloud if enabled
-        ↓
+        |
 10. Session is saved; analytics charts update with the new data point
 ```
 
@@ -250,7 +250,7 @@ Orato-AI/
 │   │   └── ui/                 # Radix UI + shadcn components
 │   │
 │   ├── api/
-│   │   ├── apiClient.js        # Fetch wrapper (frontend → backend)
+│   │   ├── apiClient.js        # Fetch wrapper (frontend -> backend)
 │   │   ├── aiService.js        # AI endpoint helpers
 │   │   └── sessionAnalytics.js
 │   │
@@ -264,7 +264,7 @@ Orato-AI/
 │       └── index.js
 │
 └── server/
-    ├── index.js                # Express server — AI proxy, cache, rate limit
+    ├── index.js                # Express server -- AI proxy, cache, rate limit
     ├── config.js               # Centralised server config
     ├── package.json
     └── .env.example            # Environment variable template
