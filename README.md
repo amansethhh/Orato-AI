@@ -30,47 +30,19 @@
 
 ---
 
-## The Problem
-
-Most people struggle with spoken communication — interviews, presentations, and everyday conversations — yet receive little to no structured feedback on how they actually sound. Traditional coaching is expensive, inaccessible, and not available in real time.
-
-## The Solution
-
-Orato AI is a production-grade, full-stack AI coaching platform. Users record their spoken responses, and the system instantly transcribes, analyzes, and returns structured coaching feedback — scoring clarity, confidence, fluency, and structure — powered by Google Gemini or OpenAI.
-
-**Key value:** Real-time, structured, actionable coaching available to anyone with a browser.
-
----
-
 ---
 
 ## 🔎 Quick Navigation
 
 <div align="center">
 
-[🚀 Overview](#-overview) •
-[🎥 Demo](#-demo) •
-[✨ Features](#-features) •
-[🏗 Architecture](#-architecture) •
-[⚙️ Tech Stack](#️-tech-stack)
+[🚀 Overview](#-overview) • [🎥 Demo](#-demo) • [✨ Features](#-features) • [🏗 Architecture](#-architecture) • [⚙️ Tech Stack](#%EF%B8%8F-tech-stack)
 
-<br/>
+[🔄 How It Works](#-how-it-works) • [📂 Project Structure](#-project-structure) • [🛠 Setup](#-setup-instructions) • [🔐 Environment](#-environment-variables)
 
-[🔄 How It Works](#-how-it-works) •
-[📂 Project Structure](#-project-structure) •
-[🛠 Setup](#️-setup-instructions) •
-[🔐 Environment](#-environment-variables)
+[⚡ Performance](#-performance--optimization) • [📡 API](#-api-reference) • [🚧 Future Plans](#-future-improvements)
 
-<br/>
-
-[⚡ Performance](#-performance--optimization) •
-[📡 API](#-api-reference) •
-[🚧 Future Plans](#-future-improvements)
-
-<br/>
-
-[🤝 Contributing](#-contributing) •
-[📄 License](#-license)
+[🤝 Contributing](#-contributing) • [📄 License](#-license)
 
 </div>
 
@@ -80,7 +52,21 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 
 ---
 
-## Demo
+## 🚀 Overview
+
+### The Problem
+
+Most people struggle with spoken communication — interviews, presentations, and everyday conversations — yet receive little to no structured feedback on how they actually sound. Traditional coaching is expensive, inaccessible, and not available in real time.
+
+### The Solution
+
+Orato AI is a production-grade, full-stack AI coaching platform. Users record their spoken responses, and the system instantly transcribes, analyzes, and returns structured coaching feedback — scoring clarity, confidence, fluency, and structure — powered by Google Gemini or OpenAI.
+
+**Key value:** Real-time, structured, actionable coaching available to anyone with a browser.
+
+---
+
+## 🎥 Demo
 
 <div align="center">
 
@@ -96,7 +82,7 @@ Experience the full AI-powered speaking coach in real-time.
 
 ---
 
-## Features
+## ✨ Features
 
 | Feature | Description |
 |---|---|
@@ -118,53 +104,58 @@ Experience the full AI-powered speaking coach in real-time.
 ## 🏗 Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND (React + Vite)                 │
-│                                                                 │
-│   [Home] → [Setup] → [VoicePractice] → [AIFeedback]            │
-│       MediaRecorder API       Web Speech API (STT)              │
-│       SpeechSynthesis API (TTS)    Recharts (analytics)         │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │  POST /api/ai  (transcript + prompt)
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    BACKEND (Node.js + Express)                  │
-│                                                                 │
-│   Rate Limiter → Request Validator → Cache Lookup               │
-│                         │                                       │
-│              ┌──────────┴──────────┐                           │
-│              ▼                     ▼                            │
-│        Google Gemini API      OpenAI API                        │
-│              └──────────┬──────────┘                           │
-│                         ▼                                       │
-│        Response Validator → Cache Store → JSON Response         │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │  Structured feedback JSON
-                           ▼
-                    ┌──────────────┐
-                    │  React UI    │
-                    │  Score cards │
-                    │  Coaching    │
-                    │  insights    │
-                    └──────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                    FRONTEND (React + Vite)                    │
+│                                                               │
+│  [Home] → [Setup] → [VoicePractice] → [AIFeedback]           │
+│  MediaRecorder API          Web Speech API (STT)              │
+│  SpeechSynthesis API (TTS)  Recharts (analytics)              │
+└──────────────────────────────┬────────────────────────────────┘
+                               │
+                    POST /api/ai (transcript + prompt)
+                               │
+                               ▼
+┌───────────────────────────────────────────────────────────────┐
+│                  BACKEND (Node.js + Express)                  │
+│                                                               │
+│  Rate Limiter → Request Validator → Cache Lookup              │
+│                          │                                    │
+│              ┌───────────┴───────────┐                        │
+│              ▼                       ▼                        │
+│       Google Gemini API        OpenAI API                     │
+│              └───────────┬───────────┘                        │
+│                          ▼                                    │
+│  Response Validator → Cache Store → JSON Response             │
+└──────────────────────────────┬────────────────────────────────┘
+                               │
+                    Structured feedback JSON
+                               │
+                               ▼
+                      ┌────────────────┐
+                      │   React UI     │
+                      │   Score cards  │
+                      │   Coaching     │
+                      │   insights     │
+                      └────────────────┘
 ```
 
 ### 🔁 Request Flow
+
 ```
 User speaks → MediaRecorder captures audio
-           → Web Speech API transcribes to text
-           → Frontend sends transcript + prompt to backend
-           → Backend checks cache (dedup + prompt cache)
-           → Backend calls Gemini / OpenAI with schema prompt
-           → Response validated, clamped, cached
-           → Structured JSON returned to frontend
-           → UI renders scores, strengths, improvements, sample answer
-           → SpeechSynthesis reads feedback aloud (optional)
+            → Web Speech API transcribes to text
+            → Frontend sends transcript + prompt to backend
+            → Backend checks cache (dedup + prompt cache)
+            → Backend calls Gemini / OpenAI with schema prompt
+            → Response validated, clamped, cached
+            → Structured JSON returned to frontend
+            → UI renders scores, strengths, improvements, sample answer
+            → SpeechSynthesis reads feedback aloud (optional)
 ```
 
 ---
 
-## Tech Stack
+## ⚙️ Tech Stack
 
 **Frontend**
 | Technology | Version | Purpose |
@@ -200,24 +191,24 @@ User speaks → MediaRecorder captures audio
 ## 🔄 How It Works
 
 ```
-1. User selects a practice mode (Interview / Presentation / Casual)
-       ↓
-2. AI generates an adaptive question based on role and difficulty
-       ↓
-3. User records their spoken response via the microphone
-       ↓
-4. Web Speech API transcribes the audio to text in real time
-       ↓
-5. Transcript and coaching prompt are sent to the backend proxy
-       ↓
-6. Backend checks the in-memory cache; on a miss, calls Gemini or OpenAI
-       ↓
-7. AI returns structured JSON: scores, strengths, improvements, tip, sample answer
-       ↓
-8. Frontend renders animated score cards, coaching insights, and a model answer
-       ↓
-9. SpeechSynthesis reads the feedback aloud if enabled
-       ↓
+ 1. User selects a practice mode (Interview / Presentation / Casual)
+        ↓
+ 2. AI generates an adaptive question based on role and difficulty
+        ↓
+ 3. User records their spoken response via the microphone
+        ↓
+ 4. Web Speech API transcribes the audio to text in real time
+        ↓
+ 5. Transcript and coaching prompt are sent to the backend proxy
+        ↓
+ 6. Backend checks the in-memory cache; on a miss, calls Gemini or OpenAI
+        ↓
+ 7. AI returns structured JSON: scores, strengths, improvements, tip, sample answer
+        ↓
+ 8. Frontend renders animated score cards, coaching insights, and a model answer
+        ↓
+ 9. SpeechSynthesis reads the feedback aloud if enabled
+        ↓
 10. Session is saved; analytics charts update with the new data point
 ```
 
@@ -233,32 +224,32 @@ Orato-AI/
 ├── package.json
 │
 ├── src/
-│   ├── main.jsx               # App entry point
-│   ├── App.jsx                # Route definitions
-│   ├── Layout.jsx             # Shell layout
+│   ├── main.jsx                # App entry point
+│   ├── App.jsx                 # Route definitions
+│   ├── Layout.jsx              # Shell layout
 │   │
 │   ├── pages/
-│   │   ├── Home.jsx           # Mode selection dashboard
-│   │   ├── Intro.jsx          # Onboarding / landing
-│   │   ├── InterviewSetup.jsx # Configure interview parameters
-│   │   ├── QuestionSetup.jsx  # Custom question setup
-│   │   ├── VoicePractice.jsx  # Recording + STT interface
-│   │   └── AIFeedback.jsx     # Feedback results & analytics
+│   │   ├── Home.jsx            # Mode selection dashboard
+│   │   ├── Intro.jsx           # Onboarding / landing
+│   │   ├── InterviewSetup.jsx  # Configure interview parameters
+│   │   ├── QuestionSetup.jsx   # Custom question setup
+│   │   ├── VoicePractice.jsx   # Recording + STT interface
+│   │   └── AIFeedback.jsx      # Feedback results & analytics
 │   │
 │   ├── components/
-│   │   ├── VoiceWaveform.jsx  # Live audio visualizer
-│   │   ├── ScoreIndicator.jsx # Animated score ring
-│   │   ├── SessionSummary.jsx # Per-session summary card
+│   │   ├── VoiceWaveform.jsx   # Live audio visualizer
+│   │   ├── ScoreIndicator.jsx  # Animated score ring
+│   │   ├── SessionSummary.jsx  # Per-session summary card
 │   │   ├── ProgressSnapshot.jsx
 │   │   ├── SettingsModal.jsx
 │   │   ├── SettingsProvider.jsx
 │   │   ├── ErrorBoundary.jsx
-│   │   ├── translations.jsx   # EN / HI strings
-│   │   └── ui/                # Radix UI + shadcn components
+│   │   ├── translations.jsx    # EN / HI strings
+│   │   └── ui/                 # Radix UI + shadcn components
 │   │
 │   ├── api/
-│   │   ├── apiClient.js       # Fetch wrapper (frontend → backend)
-│   │   ├── aiService.js       # AI endpoint helpers
+│   │   ├── apiClient.js        # Fetch wrapper (frontend → backend)
+│   │   ├── aiService.js        # AI endpoint helpers
 │   │   └── sessionAnalytics.js
 │   │
 │   ├── lib/
@@ -271,15 +262,15 @@ Orato-AI/
 │       └── index.js
 │
 └── server/
-    ├── index.js               # Express server — AI proxy, cache, rate limit
-    ├── config.js              # Centralised server config
+    ├── index.js                # Express server — AI proxy, cache, rate limit
+    ├── config.js               # Centralised server config
     ├── package.json
-    └── .env.example           # Environment variable template
+    └── .env.example            # Environment variable template
 ```
 
 ---
 
-## Setup Instructions
+## 🛠 Setup Instructions
 
 ### Prerequisites
 
@@ -358,7 +349,7 @@ The app opens automatically at **http://localhost:5173**.
 
 ---
 
-## Environment Variables
+## 🔐 Environment Variables
 
 ### Backend — `server/.env`
 
@@ -381,7 +372,7 @@ The app opens automatically at **http://localhost:5173**.
 
 ---
 
-## Performance & Optimization
+## ⚡ Performance & Optimization
 
 | Optimization | Implementation |
 |---|---|
@@ -397,7 +388,7 @@ The app opens automatically at **http://localhost:5173**.
 
 ---
 
-## API Reference
+## 📡 API Reference
 
 ### `GET /api/health`
 
@@ -462,7 +453,7 @@ Generate an adaptive practice question.
 
 ---
 
-## Future Improvements
+## 🚧 Future Improvements
 
 - [ ] **Real-time streaming AI** — Stream AI tokens to the UI for lower perceived latency
 - [ ] **User authentication** — Persistent accounts with cross-device session history
@@ -475,7 +466,7 @@ Generate an adaptive practice question.
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome. Please follow these steps:
 
@@ -489,7 +480,7 @@ Please keep pull requests focused and include a clear description of the change 
 
 ---
 
-## License
+## 📄 License
 
 This project is licensed under the [MIT License](./LICENSE).
 
