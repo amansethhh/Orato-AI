@@ -28,6 +28,8 @@
   ⭐ If you like this project, consider giving it a star!
 </p>
 
+</div>
+
 ---
 
 ---
@@ -79,6 +81,8 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 👉 https://oratoai.base44.app  
 
 Experience the full AI-powered speaking coach in real-time.
+
+</div>
 
 ---
 
