@@ -115,7 +115,7 @@ Experience the full AI-powered speaking coach in real-time.
 
 ---
 
-## Architecture
+## 🏗 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -149,7 +149,7 @@ Experience the full AI-powered speaking coach in real-time.
                     └──────────────┘
 ```
 
-**Request flow:**
+### 🔁 Request Flow
 ```
 User speaks → MediaRecorder captures audio
            → Web Speech API transcribes to text
@@ -197,7 +197,7 @@ User speaks → MediaRecorder captures audio
 
 ---
 
-## How It Works
+## 🔄 How It Works
 
 ```
 1. User selects a practice mode (Interview / Presentation / Casual)
@@ -223,7 +223,7 @@ User speaks → MediaRecorder captures audio
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 Orato-AI/
