@@ -107,7 +107,7 @@ Experience the full AI-powered speaking coach in real-time.
 
 ```
 +------------------------------------------------------------+
-|                  FRONTEND (React + Vite)                    |
+|                  FRONTEND (React + Vite)                   |
 |                                                            |
 |  [Home] -> [Setup] -> [VoicePractice] -> [AIFeedback]      |
 |  MediaRecorder API          Web Speech API (STT)           |
@@ -118,16 +118,16 @@ Experience the full AI-powered speaking coach in real-time.
                               |
                               v
 +------------------------------------------------------------+
-|                BACKEND (Node.js + Express)                  |
+|                BACKEND (Node.js + Express)                 |
 |                                                            |
-|  Rate Limiter -> Request Validator -> Cache Lookup          |
+|  Rate Limiter -> Request Validator -> Cache Lookup         |
 |                         |                                  |
 |             +-----------+-----------+                      |
 |             v                       v                      |
 |      Google Gemini API        OpenAI API                   |
 |             +-----------+-----------+                      |
 |                         v                                  |
-|  Response Validator -> Cache Store -> JSON Response         |
+|  Response Validator -> Cache Store -> JSON Response        |
 +-----------------------------+------------------------------+
                               |
                    Structured feedback JSON
