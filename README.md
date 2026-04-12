@@ -32,8 +32,6 @@
 
 ---
 
----
-
 ## 🔎 Quick Navigation
 
 <div align="center">
@@ -108,39 +106,39 @@ Experience the full AI-powered speaking coach in real-time.
 ## 🏗 Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────┐
-│                    FRONTEND (React + Vite)                    │
-│                                                               │
-│  [Home] → [Setup] → [VoicePractice] → [AIFeedback]           │
-│  MediaRecorder API          Web Speech API (STT)              │
-│  SpeechSynthesis API (TTS)  Recharts (analytics)              │
-└──────────────────────────────┬────────────────────────────────┘
-                               │
-                    POST /api/ai (transcript + prompt)
-                               │
-                               ▼
-┌───────────────────────────────────────────────────────────────┐
-│                  BACKEND (Node.js + Express)                  │
-│                                                               │
-│  Rate Limiter → Request Validator → Cache Lookup              │
-│                          │                                    │
-│              ┌───────────┴───────────┐                        │
-│              ▼                       ▼                        │
-│       Google Gemini API        OpenAI API                     │
-│              └───────────┬───────────┘                        │
-│                          ▼                                    │
-│  Response Validator → Cache Store → JSON Response             │
-└──────────────────────────────┬────────────────────────────────┘
-                               │
-                    Structured feedback JSON
-                               │
-                               ▼
-                      ┌────────────────┐
-                      │   React UI     │
-                      │   Score cards  │
-                      │   Coaching     │
-                      │   insights     │
-                      └────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                  FRONTEND (React + Vite)                   │
+│                                                            │
+│  [Home] → [Setup] → [VoicePractice] → [AIFeedback]        │
+│  MediaRecorder API          Web Speech API (STT)           │
+│  SpeechSynthesis API (TTS)  Recharts (analytics)           │
+└─────────────────────────────┬──────────────────────────────┘
+                              │
+                   POST /api/ai (transcript + prompt)
+                              │
+                              ▼
+┌────────────────────────────────────────────────────────────┐
+│                BACKEND (Node.js + Express)                 │
+│                                                            │
+│  Rate Limiter → Request Validator → Cache Lookup           │
+│                         │                                  │
+│             ┌───────────┴───────────┐                      │
+│             ▼                       ▼                      │
+│      Google Gemini API        OpenAI API                   │
+│             └───────────┬───────────┘                      │
+│                         ▼                                  │
+│  Response Validator → Cache Store → JSON Response          │
+└─────────────────────────────┬──────────────────────────────┘
+                              │
+                   Structured feedback JSON
+                              │
+                              ▼
+                     ┌────────────────┐
+                     │   React UI     │
+                     │   Score cards  │
+                     │   Coaching     │
+                     │   insights     │
+                     └────────────────┘
 ```
 
 ### 🔁 Request Flow
@@ -333,9 +331,9 @@ node index.js
 
 Expected output:
 ```
-╔══════════════════════════════════════════════════════╗
-║           🎙️  Orato AI — Backend Server              ║
-╚══════════════════════════════════════════════════════╝
+======================================================
+           Orato AI - Backend Server
+======================================================
 
 [INFO] Server running on http://localhost:3001
 [INFO] AI Provider: GEMINI
