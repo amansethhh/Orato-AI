@@ -1,9 +1,11 @@
 <div align="center">
 
-# 🎙 Orato AI
+<img src="./screenshots/orato_ai_logo.png" width="140"/>
+
+#  Orato AI
 
 <p align="center">
-  Real-time AI-powered communication coach that analyzes spoken responses and delivers structured, actionable feedback.
+  Real-time AI-powered communication coach that analyses spoken responses and delivers structured, actionable feedback.
 </p>
 
 <p align="center">
@@ -32,25 +34,23 @@
 
 ---
 
-## 🔎 Quick Navigation
-
-<div align="center">
-
-[🚀 Overview](#-overview) • [🎥 Demo](#-demo) • [✨ Features](#-features) • [🏗 Architecture](#-architecture) • [⚙️ Tech Stack](#%EF%B8%8F-tech-stack)
-
-[🔄 How It Works](#-how-it-works) • [📂 Project Structure](#-project-structure) • [🛠 Setup](#-setup-instructions) • [🔐 Environment](#-environment-variables)
-
-[⚡ Performance](#-performance--optimization) • [📡 API](#-api-reference) • [🚧 Future Plans](#-future-improvements)
-
-[🤝 Contributing](#-contributing) • [📄 License](#-license)
-
-</div>
+## 🎬 Live Demo
 
 <p align="center">
-  <b>AI-Powered Communication Coach • Real-Time Feedback • Production-Ready Architecture</b>
+
+<img 
+  src="./screenshots/demo.gif"
+  alt="Orato AI Demo"
+  width="900"
+/>
+
 </p>
 
----
+<p align="center">
+<sub>
+Real-time voice recording • AI-powered feedback • Structured scoring • Sample answers • Communication coaching
+</sub>
+</p>
 
 ## 🚀 Overview
 
@@ -66,7 +66,7 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 
 ---
 
-## 🎥 Demo
+## 🖼️ UI Preview
 
 <div align="center">
 
@@ -74,11 +74,6 @@ Orato AI is a production-grade, full-stack AI coaching platform. Users record th
 |:---:|:---:|:---:|
 | <img src="./screenshots/home.jpeg" alt="Home screen showing practice mode selection" width="260"/> | <img src="./screenshots/practice.jpeg" alt="Voice recording interface with live waveform" width="260"/> | <img src="./screenshots/feedback.jpeg" alt="Structured AI feedback with scores and coaching tips" width="260"/> |
 | Choose from Interview, Presentation, or Casual Speaking modes | Record your response with live audio waveform visualization | Receive structured scores, strengths, improvements, and a sample answer |
-
-### 🔗 Live Application  
-👉 https://oratoai.base44.app  
-
-Experience the full AI-powered speaking coach in real-time.
 
 </div>
 
