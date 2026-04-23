@@ -52,7 +52,7 @@ Real-time voice recording • AI-powered feedback • Structured scoring • Sam
 </sub>
 </p>
 
-## 🚀 Overview
+## 📋 Overview
 
 ### The Problem
 
